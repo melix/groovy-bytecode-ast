@@ -1,0 +1,22 @@
+apply plugin: 'idea'
+apply plugin: 'groovy'
+
+group = "groovyx.ast.bytecode"
+version = "0.1.0-SNAPSHOT"
+
+description = "Provides an AST Transformation which allows to write the body of a method as bytecode"
+
+targetCompatibility = "1.5"
+sourceCompatibility = "1.5"
+
+// specifies all Maven repositories for resolving external depedencies
+repositories {
+    mavenCentral()
+}
+
+// external dependencies
+dependencies {
+    groovy group: 'org.codehaus.groovy', name: 'groovy-all', version: '1.7.6'
+    testCompile "org.spockframework:spock-core:0.5-groovy-1.7"
+    testCompile "junit:junit:4.8.1"
+}
