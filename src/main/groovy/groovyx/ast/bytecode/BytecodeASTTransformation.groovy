@@ -57,10 +57,10 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
 				instructions.each { ExpressionStatement stmt ->
 					def expression = stmt.expression
 					if (expression instanceof VariableExpression) {
-						def text = expression.text
+						def text = expression.text.toLowerCase()
 						if (text ==~ /l[0-9]+/) {
 							mv.visitLabel(labels[text])
-						} else if (text =~ /[aild]const|[aild]sub|[aild]add|[aild]return/) {
+						} else if (text =~ /[ildf]mul|[aild]const|[ildf]sub|[ilfd]add|[aildf]return/) {
 							mv.visitInsn(Opcodes."${text.toUpperCase()}")
 						} else {
 							throw new IllegalArgumentException("Bytecode operation unsupported : "+text);
@@ -83,8 +83,14 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
 										break;
 									case 'ALOAD':
 									case 'ILOAD':
-                                    case 'ISTORE':
+									case 'LLOAD':
+									case 'FLOAD':
+                                    case 'DLOAD':
                                     case 'ASTORE':
+                                    case 'ISTORE':
+                                    case 'FSTORE':
+                                    case 'LSTORE':
+                                    case 'DSTORE':
 										mv.visitVarInsn(Opcodes."${opcode}", args.expressions[0].text as int)
 										break;
                                     case 'IINC':
@@ -109,6 +115,10 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
 										break;
 									case 'FRAME':
 										// frames only supported in JDK 1.6+
+                                        break;
+                                    case 'CHECKCAST':
+                                        mv.visitTypeInsn(CHECKCAST, args.expressions[0].text)
+                                        break;
 									default:
 										throw new IllegalArgumentException("Bytecode operation unsupported : "+expression);
 								}
