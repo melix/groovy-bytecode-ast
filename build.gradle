@@ -34,9 +34,53 @@ repositories {
     mavenCentral()
 }
 
+def cobSerFile="${project.buildDir}/cobertura.ser"
+def srcOriginal="${sourceSets.main.classesDir}"
+def srcCopy="${srcOriginal}-copy"
+
 // external dependencies
 dependencies {
     groovy group: 'org.codehaus.groovy', name: 'groovy-all', version: '1.7.6'
     testCompile "org.spockframework:spock-core:0.5-groovy-1.7"
+    testRuntime 'net.sourceforge.cobertura:cobertura:1.9.3'
     testCompile "junit:junit:4.8.1"
+}
+
+test.doFirst  {
+    ant {
+        // delete data file for cobertura, otherwise coverage would be added
+        delete(file:cobSerFile, failonerror:false)
+        // delete copy of original classes
+        delete(dir: srcCopy, failonerror:false)
+        // import cobertura task, so it is available in the script
+        taskdef(resource:'tasks.properties', classpath: configurations.testRuntime.asPath)
+        // create copy (backup) of original class files
+        copy(todir: srcCopy) {
+            fileset(dir: srcOriginal)
+        }
+        // instrument the relevant classes in-place
+        'cobertura-instrument'(datafile:cobSerFile) {
+            fileset(dir: srcOriginal,
+                   includes:"groovyx/ast/bytecode/**/*.class",
+                   excludes:"**/*Test.class")
+        }
+    }
+}
+
+test {
+    systemProperties "net.sourceforge.cobertura.datafile": cobSerFile
+}
+
+test.doLast {
+    if (new File(srcCopy).exists()) {
+        // replace instrumented classes with backup copy again
+        ant {
+            delete(file: srcOriginal)
+            move(file: srcCopy,
+                     tofile: srcOriginal)
+        }
+        // create cobertura reports
+        ant.'cobertura-report'(destdir:"${project.buildDirName}/test-results",
+             format:'html', srcdir:"src/main/groovy", datafile:cobSerFile)
+    }
 }
