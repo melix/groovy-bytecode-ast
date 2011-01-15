@@ -60,11 +60,14 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
 						def text = expression.text.toLowerCase()
 						if (text ==~ /l[0-9]+/) {
 							mv.visitLabel(labels[text])
-						} else if (text =~ /[ildf]mul|[aild]const|[ildf]sub|[ilfd]add|[aildf]return|i2b|i2c|i2s|i2d|i2l|l2d|l2i|f2d|f2i|f2l|d2i|d2l|d2f/) {
-							mv.visitInsn(Opcodes."${text.toUpperCase()}")
 						} else if (text == 'vreturn') {
                             // vreturn replaces the regular "return" bytecode statement
                             mv.visitInsn(Opcodes.RETURN)
+                        } else if (Instructions.UNIT_OPS.contains(text)) {
+							mv.visitInsn(Opcodes."${text.toUpperCase()}")
+						} else if (text =~ /(load|store)_[0-4]/) {
+                            def (var,cpt) = text.split("_")
+                            mv.visitVarInsn(Opcodes."${var.toUpperCase()}", cpt as int)
                         } else {
 							throw new IllegalArgumentException("Bytecode operation unsupported : "+text);
 						}
@@ -77,6 +80,9 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
 									case '_GOTO':
 										mv.visitJumpInsn(GOTO, labels[args.expressions[0].text])
 										break;
+                                    case '_NEW':
+                                        mv.visitTypeInsn(NEW, args.expressions[0].text)
+                                        break;
 									case 'IF_ICMPGE':
 									case 'IF_ICMPLE':
 									case 'IF_ICMPNE':
@@ -121,6 +127,9 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                         break;
                                     case 'CHECKCAST':
                                         mv.visitTypeInsn(CHECKCAST, args.expressions[0].text)
+                                        break;
+                                    case 'LDC':
+                                        mv.visitLdcInsn(args.expressions[0].value)
                                         break;
 									default:
 										throw new IllegalArgumentException("Bytecode operation unsupported : "+expression);

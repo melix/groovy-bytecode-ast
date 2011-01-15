@@ -234,5 +234,74 @@ class BytecodeSpock extends Specification {
         then:
             notThrown(Exception)
     }
+
+    def "should instantiate and return integer with autoboxing"() {
+        def shell = new GroovyShell()
+        def run = shell.evaluate("""
+            /**
+            * return new Integer(i)
+            */
+            @groovyx.ast.bytecode.Bytecode
+            int run(int i) {
+                _new 'java/lang/Integer'
+                dup
+                iload 1
+                invokespecial 'java/lang/Integer.<init>','(I)V'
+                invokevirtual 'java/lang/Integer.intValue','()I'
+                ireturn
+            }
+            this.&run
+        """)
+
+        expect:
+            run(i) == i
+
+        where:
+            i << (0..10)
+    }
+
+    def "should pop value on stack"() {
+        def shell = new GroovyShell()
+        def run = shell.evaluate("""
+            /**
+            * 1
+            * return i
+            */
+            @groovyx.ast.bytecode.Bytecode
+            int run(int i) {
+                iconst_1
+                pop
+                iload 1
+                ireturn
+            }
+            this.&run
+        """)
+
+        expect:
+            run(i) == i
+
+        where:
+            i << (0..10)
+    }
+
+    def "should pop double value on stack"() {
+        def shell = new GroovyShell()
+        def run = shell.evaluate("""
+            @groovyx.ast.bytecode.Bytecode
+            int run(int i) {
+                ldc 2.0d
+                pop2
+                iload 1
+                ireturn
+            }
+            this.&run
+        """)
+
+        expect:
+            run(i) == i
+
+        where:
+            i << (0..10)
+    }
 }
 
