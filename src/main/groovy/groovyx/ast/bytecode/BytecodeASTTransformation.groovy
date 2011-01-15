@@ -62,7 +62,10 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
 							mv.visitLabel(labels[text])
 						} else if (text =~ /[ildf]mul|[aild]const|[ildf]sub|[ilfd]add|[aildf]return|i2b|i2c|i2s|i2d|i2l|l2d|l2i|f2d|f2i|f2l|d2i|d2l|d2f/) {
 							mv.visitInsn(Opcodes."${text.toUpperCase()}")
-						} else {
+						} else if (text == 'vreturn') {
+                            // vreturn replaces the regular "return" bytecode statement
+                            mv.visitInsn(Opcodes.RETURN)
+                        } else {
 							throw new IllegalArgumentException("Bytecode operation unsupported : "+text);
 						}
 					} else if (expression instanceof MethodCallExpression) {

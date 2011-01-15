@@ -219,5 +219,20 @@ class BytecodeSpock extends Specification {
             e.errorCollector.errors[0].cause.class == IllegalArgumentException
 
     }
+
+    def "test void return"() {
+        def shell = new GroovyShell()
+
+        when:
+            shell.evaluate("""
+            @groovyx.ast.bytecode.Bytecode
+            void Void() {
+                vreturn
+            }
+        """)
+
+        then:
+            notThrown(Exception)
+    }
 }
 
