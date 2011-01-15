@@ -43,7 +43,7 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
 		meth.code = new BytecodeSequence(new BytecodeInstruction() {
 			@Override
 			void visit(MethodVisitor mv) {
-				def labels = [:]
+				def labels = [:].withDefault { throw new IllegalArgumentException("Label [${it}] is not defined")}
 				// perform first visit to collect labels
 				instructions.each { ExpressionStatement stmt ->
 					def expression = stmt.expression

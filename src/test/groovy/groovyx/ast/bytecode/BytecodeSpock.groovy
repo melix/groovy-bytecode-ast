@@ -21,6 +21,7 @@
 package groovyx.ast.bytecode
 
 import spock.lang.Specification
+import org.codehaus.groovy.control.MultipleCompilationErrorsException
 
 /**
  * Created by IntelliJ IDEA.
@@ -198,6 +199,25 @@ class BytecodeSpock extends Specification {
 
         where:
             o << ["toto", "tata"]
+    }
+
+    def "test jump to illegal label"() {
+        def shell = new GroovyShell()
+
+        when:
+            shell.evaluate("""
+
+            @groovyx.ast.bytecode.Bytecode
+            void jump() {
+                _goto l1
+            }
+        """)
+
+        then:
+            def e = thrown(MultipleCompilationErrorsException)
+            e.errorCollector.errors.size() == 1
+            e.errorCollector.errors[0].cause.class == IllegalArgumentException
+
     }
 }
 
