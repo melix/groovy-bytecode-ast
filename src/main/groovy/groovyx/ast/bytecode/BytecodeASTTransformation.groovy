@@ -107,6 +107,7 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                         break;
 									case 'INVOKEVIRTUAL':
                                     case 'INVOKESTATIC':
+                                    case 'INVOKEINTERFACE':
                                     case 'INVOKESPECIAL':
 										def classExpr = args.expressions[0].text
                                         def clazz,call
