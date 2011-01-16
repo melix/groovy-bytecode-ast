@@ -191,6 +191,9 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                 case 'ANEWARRAY':
                                     mv.visitTypeInsn(ANEWARRAY, args.expressions[0].text);
                                     break;
+                                case 'MULTIANEWARRAY':
+                                    mv.visitMultiANewArrayInsn(args.expressions[0].text, args.expressions[1].text as int)
+                                    break;
                                 default:
                                     throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
                             }

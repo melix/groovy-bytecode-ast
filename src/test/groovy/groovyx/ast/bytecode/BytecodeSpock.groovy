@@ -377,5 +377,35 @@ class BytecodeSpock extends Specification {
             5   |   3
             6   |   3
     }
+
+    def "test multidimensional array instantiation"() {
+        def shell = new GroovyShell()
+                def run = shell.evaluate("""
+                    @groovyx.ast.bytecode.Bytecode
+                    int[][] run(int x, int y) {
+                        iload_1
+                        iload_2
+                        multianewarray '[[I',2
+                        areturn
+                    }
+                    this.&run
+                """)
+
+                expect:
+                    run(x,y).length == x
+                    sizeOf2dLevel(run(x,y)) == y
+                where:
+                    x   |   y
+                    0   |   0
+                    1   |   0
+                    1   |   1
+                    2   |   0
+                    2   |   1
+                    2   |   2
+    }
+
+    private static sizeOf2dLevel(int[][] arr) {
+        arr.length==0?0:arr[0].length
+    }
 }
 
