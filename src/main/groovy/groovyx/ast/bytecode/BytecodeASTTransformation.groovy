@@ -83,11 +83,25 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                     case '_NEW':
                                         mv.visitTypeInsn(NEW, args.expressions[0].text)
                                         break;
+                                    case '_INSTANCEOF':
+                                        mv.visitTypeInsn(INSTANCEOF, args.expressions[0].text)
+                                        break;
                                     case 'IF_ICMPGE':
                                     case 'IF_ICMPLE':
                                     case 'IF_ICMPNE':
                                     case 'IF_ICMPLT':
                                     case 'IF_ICMPGT':
+                                    case 'IF_ICMPEQ':
+                                    case 'IF_ACMPEQ':
+                                    case 'IF_ACMPNE':
+                                    case 'IFEQ':
+                                    case 'IFGE':
+                                    case 'IFGT':
+                                    case 'IFLE':
+                                    case 'IFLT':
+                                    case 'IFNE':
+                                    case 'IFNONNULL':
+                                    case 'IFNULL':
                                         mv.visitJumpInsn(Opcodes."${opcode}", labels[args.expressions[0].text])
                                         break;
                                     case 'ALOAD':
@@ -130,6 +144,16 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                         def classExpr = args.expressions[0].text
                                         def (clazz, field) = extractClazzAndFieldOrMethod(classExpr, meth)
                                         mv.visitFieldInsn(Opcodes."${opcode}", clazz, field, args.expressions[1].text)
+                                        break;
+                                    case 'BIPUSH':
+                                    case 'SIPUSH':
+                                        mv.visitIntInsn(Opcodes."${opcode}", args.expressions[0].text as int)
+                                        break;
+                                    case 'NEWARRAY':
+                                        mv.visitIntInsn(Opcodes."${opcode}", Opcodes."${args.expressions[0].text.toUpperCase()}")
+                                        break;
+                                    case 'ANEWARRAY':
+                                        mv.visitTypeInsn(ANEWARRAY, args.expressions[0].text);
                                         break;
                                     default:
                                         throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);

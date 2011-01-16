@@ -118,5 +118,71 @@ class PrimitiveTypesBytecodeSpock extends Specification {
         where:
             x << (0..10)
     }
+
+    def "should sum array"() {
+        def shell = new GroovyShell()
+        def sum = shell.evaluate("""
+            @groovyx.ast.bytecode.Bytecode
+            int sum() {
+               l0
+                bipush 10
+                newarray t_int
+                astore 1
+               l1
+                iconst_0
+                istore 2
+               l2
+                iload 2
+                aload 1
+                arraylength
+                if_icmpge l3
+               l4
+                aload 1
+                iload 2
+                iload 2
+                iastore
+               l5
+                iinc 2,1
+                _goto l2
+               l3
+                iconst_0
+                istore 2
+               l6
+                aload 1
+                astore 3
+               l7
+                aload 3
+                arraylength
+                istore 4
+               l8
+                iconst_0
+                istore 5
+               l9
+                iload 5
+                iload 4
+                if_icmpge l10
+                aload 3
+                iload 5
+                iaload
+                istore 6
+               l11
+                iload 2
+                iload 6
+                iadd
+                istore 2
+               l12
+                iinc 5,1
+                _goto l9
+               l10
+                iload 2
+                ireturn
+            }
+            sum()
+            """)
+
+        expect:
+            sum == 45
+
+    }
 }
 

@@ -18,10 +18,14 @@
  * /
  */
 
+
+
 package groovyx.ast.bytecode
 
 import spock.lang.Specification
 import org.codehaus.groovy.control.MultipleCompilationErrorsException
+import org.codehaus.groovy.control.ErrorCollector
+import org.codehaus.groovy.control.CompilerConfiguration
 
 /**
  * Created by IntelliJ IDEA.
@@ -35,7 +39,7 @@ import org.codehaus.groovy.control.MultipleCompilationErrorsException
  * are converted by the AST Transformation.
  */
 class InstructionsImplementedSpock extends Specification {
-    def "all those instructions should be interpreted by the AST transform"() {
+    def "all those no-arg instructions should be interpreted by the AST transform"() {
         def shell = new GroovyShell()
 
         when:
@@ -103,5 +107,32 @@ class InstructionsImplementedSpock extends Specification {
                     "saload","sastore",
                     "swap"
             ]
+    }
+
+    def "all those one-arg instructions should be interpreted by the AST transform"() {
+        def shell = new GroovyShell()
+        def errorCollector = null
+        when:
+            try {
+                shell.evaluate("""
+                    @groovyx.ast.bytecode.Bytecode
+                    void test() {
+                        $instruction arg
+                    }
+                    throw new org.codehaus.groovy.control.MultipleCompilationErrorsException()
+                """)
+            } catch (java.lang.VerifyError err) {
+                 // not a problem, that's not what we're testing
+            } catch (MultipleCompilationErrorsException e) {
+                errorCollector = e.errorCollector
+            }
+        then:
+            isSupported(instruction,errorCollector)
+        where:
+            instruction << Instructions.UNARY_OPS
+    }
+
+    private boolean isSupported(instruction,ErrorCollector errorCollector) {
+        errorCollector==null||errorCollector.errorCount==0 || !errorCollector.errors[0].cause.message.startsWith('Bytecode operation unsupported')
     }
 }
