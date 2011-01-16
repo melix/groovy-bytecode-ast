@@ -340,5 +340,42 @@ class BytecodeSpock extends Specification {
             5   |   1
             6   |   3
     }
+
+    def "test tableswitch statement"() {
+        def shell = new GroovyShell()
+        def run = shell.evaluate("""
+            @groovyx.ast.bytecode.Bytecode
+            int run(int i) {
+                iload_1
+                tableswitch(
+                   0: l2,
+                   1: l1,
+                   default: l3)
+                l1
+                    iconst_1
+                    ireturn
+                l2
+                    iconst_2
+                    ireturn
+                l3
+                    iconst_3
+                    ireturn
+            }
+            this.&run
+        """)
+
+        expect:
+            run(x) == y
+
+        where:
+            x   |   y
+            0   |   2
+            1   |   1
+            2   |   3
+            3   |   3
+            4   |   3
+            5   |   3
+            6   |   3
+    }
 }
 

@@ -199,27 +199,9 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                         }
                     } else if (expression.objectExpression instanceof VariableExpression && expression.arguments instanceof TupleExpression) {
                         if (expression.method.text=='lookupswitch') {
-                            if (expression.arguments.expressions && expression.arguments.expressions[0] instanceof NamedArgumentListExpression) {
-                                def defaultLabel = null
-                                def values = []
-                                def targetLabels = []
-                                def exprs = expression.arguments.expressions[0].mapEntryExpressions
-                                exprs.each { MapEntryExpression mapEntryExpression ->
-                                    def key = mapEntryExpression.keyExpression.value
-                                    switch (key) {
-                                        case 'default':
-                                            defaultLabel = labels[mapEntryExpression.valueExpression.text]
-                                            break;
-                                        default:
-                                            values << (key as int)
-                                            targetLabels << labels[mapEntryExpression.valueExpression.text]
-                                    }
-                                }
-                                if (defaultLabel==null) throw new IllegalArgumentException("Bytecode operation unsupported [lookupswitch must provide default label]: " + expression);
-                                mv.visitLookupSwitchInsn(defaultLabel, values as int[], targetLabels as Label[])
-                            } else {
-                                throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
-                            }
+                            processLookupSwitch(expression, mv, labels)
+                        } else if (expression.method.text=='tableswitch') {
+                            processTableSwitch(expression, mv, labels)
                         } else {
                             throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
                         }
@@ -229,6 +211,57 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                 } else {
                     throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
                 }
+            }
+        }
+
+        private def processLookupSwitch(MethodCallExpression expression, MethodVisitor mv, labels) {
+            if (expression.arguments.expressions && expression.arguments.expressions[0] instanceof NamedArgumentListExpression) {
+                def defaultLabel = null
+                def values = []
+                def targetLabels = []
+                def exprs = expression.arguments.expressions[0].mapEntryExpressions
+                exprs.each { MapEntryExpression mapEntryExpression ->
+                    def key = mapEntryExpression.keyExpression.value
+                    switch (key) {
+                        case 'default':
+                            defaultLabel = labels[mapEntryExpression.valueExpression.text]
+                            break;
+                        default:
+                            values << (key as int)
+                            targetLabels << labels[mapEntryExpression.valueExpression.text]
+                    }
+                }
+                if (defaultLabel == null) throw new IllegalArgumentException("Bytecode operation unsupported [lookupswitch must provide default label]: " + expression);
+                mv.visitLookupSwitchInsn(defaultLabel, values as int[], targetLabels as Label[])
+            } else {
+                throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+            }
+        }
+
+        private def processTableSwitch(MethodCallExpression expression, MethodVisitor mv, labels) {
+            if (expression.arguments.expressions && expression.arguments.expressions[0] instanceof NamedArgumentListExpression) {
+                def defaultLabel = null
+                def values = []
+                def targetLabels = []
+                def exprs = expression.arguments.expressions[0].mapEntryExpressions
+                exprs.each { MapEntryExpression mapEntryExpression ->
+                    def key = mapEntryExpression.keyExpression.value
+                    switch (key) {
+                        case 'default':
+                            defaultLabel = labels[mapEntryExpression.valueExpression.text]
+                            break;
+                        default:
+                            values << (key as int)
+                            targetLabels << labels[mapEntryExpression.valueExpression.text]
+                    }
+                }
+                if (defaultLabel == null) throw new IllegalArgumentException("Bytecode operation unsupported [tableswitch must provide default label]: " + expression);
+                values[1..<values.size()].eachWithIndex { it,i ->
+                    if (it!=values[i]+1) throw new IllegalArgumentException("Bytecode operation unsupported [tableswitch must consist of sequential values]: "+ expression)
+                }
+                mv.visitTableSwitchInsn(values.min(), values.max(), defaultLabel, targetLabels as Label[])
+            } else {
+                throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
             }
         }
 
