@@ -34,6 +34,10 @@ import org.codehaus.groovy.control.CompilePhase
 import org.codehaus.groovy.control.SourceUnit
 import org.codehaus.groovy.transform.ASTTransformation
 import org.codehaus.groovy.transform.GroovyASTTransformation
+import org.codehaus.groovy.ast.expr.TupleExpression
+import org.codehaus.groovy.ast.expr.NamedArgumentListExpression
+import org.codehaus.groovy.ast.expr.MapEntryExpression
+import org.codehaus.groovy.ast.expr.ConstantExpression
 
 @GroovyASTTransformation(phase = CompilePhase.SEMANTIC_ANALYSIS)
 class BytecodeASTTransformation implements ASTTransformation, Opcodes {
@@ -189,6 +193,32 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                     break;
                                 default:
                                     throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                            }
+                        } else {
+                            throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                        }
+                    } else if (expression.objectExpression instanceof VariableExpression && expression.arguments instanceof TupleExpression) {
+                        if (expression.method.text=='lookupswitch') {
+                            if (expression.arguments.expressions && expression.arguments.expressions[0] instanceof NamedArgumentListExpression) {
+                                def defaultLabel = null
+                                def values = []
+                                def targetLabels = []
+                                def exprs = expression.arguments.expressions[0].mapEntryExpressions
+                                exprs.each { MapEntryExpression mapEntryExpression ->
+                                    def key = mapEntryExpression.keyExpression.value
+                                    switch (key) {
+                                        case 'default':
+                                            defaultLabel = labels[mapEntryExpression.valueExpression.text]
+                                            break;
+                                        default:
+                                            values << (key as int)
+                                            targetLabels << labels[mapEntryExpression.valueExpression.text]
+                                    }
+                                }
+                                if (defaultLabel==null) throw new IllegalArgumentException("Bytecode operation unsupported [lookupswitch must provide default label]: " + expression);
+                                mv.visitLookupSwitchInsn(defaultLabel, values as int[], targetLabels as Label[])
+                            } else {
+                                throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
                             }
                         } else {
                             throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);

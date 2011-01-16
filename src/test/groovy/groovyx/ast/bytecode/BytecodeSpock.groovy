@@ -303,5 +303,42 @@ class BytecodeSpock extends Specification {
         where:
             i << (0..10)
     }
+
+    def "test lookupswitch statement"() {
+        def shell = new GroovyShell()
+        def run = shell.evaluate("""
+            @groovyx.ast.bytecode.Bytecode
+            int run(int i) {
+                iload_1
+                lookupswitch(
+                   2: l2,
+                   5: l1,
+                   default: l3)
+                l1
+                    iconst_1
+                    ireturn
+                l2
+                    iconst_2
+                    ireturn
+                l3
+                    iconst_3
+                    ireturn
+            }
+            this.&run
+        """)
+
+        expect:
+            run(x) == y
+
+        where:
+            x   |   y
+            0   |   3
+            1   |   3
+            2   |   2
+            3   |   3
+            4   |   3
+            5   |   1
+            6   |   3
+    }
 }
 
