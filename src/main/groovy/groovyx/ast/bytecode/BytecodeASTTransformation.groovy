@@ -194,6 +194,11 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                 case 'MULTIANEWARRAY':
                                     mv.visitMultiANewArrayInsn(args.expressions[0].text, args.expressions[1].text as int)
                                     break;
+                                case 'TRYCATCHBLOCK':
+                                    if (args.expressions.size()!=4) throw new IllegalArgumentException("Bytecode operation unsupported [trycatchblock requires exactly 4 parameters] : " + expression);
+                                    def tcargs = args.expressions
+                                    mv.visitTryCatchBlock(labels[tcargs[0].text], labels[tcargs[1].text], labels[tcargs[2].text], tcargs[3].value)
+                                    break;
                                 default:
                                     throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
                             }

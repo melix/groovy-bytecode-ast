@@ -404,6 +404,78 @@ class BytecodeSpock extends Specification {
                     2   |   2
     }
 
+    def "should handle null pointer exception safely"() {
+        def shell = new GroovyShell()
+        def safeToString = shell.evaluate("""
+            @groovyx.ast.bytecode.Bytecode
+            public String safeToStringWithTryCatch(String str) {
+                trycatchblock l0,l1,l2,'java/lang/NullPointerException'
+            l0
+                aload 1
+                invokevirtual 'java/lang/String.toString', '()Ljava/lang/String;'
+            l1
+                areturn
+            l2
+                astore 2
+            l3
+                aconst_null
+                areturn
+            }
+            this.&safeToStringWithTryCatch
+        """)
+
+        expect:
+            safeToString(str) == str
+
+        where:
+            str << ['test',null]
+    }
+
+    def "should handle null pointer exception safely with not null return"() {
+        def shell = new GroovyShell()
+        def safeToString = shell.evaluate("""
+            @groovyx.ast.bytecode.Bytecode
+            public String safeToStringWithTryCatch(String str) {
+                trycatchblock l0,l1,l2,'java/lang/NullPointerException'
+                trycatchblock l0,l1,l3,null
+                trycatchblock l2,l4,l3,null
+                trycatchblock l3,l5,l3,null
+               l6
+                aconst_null
+                astore_2
+               l0
+                aload_1
+                invokevirtual 'java/lang/String.toString', '()Ljava/lang/String;'
+                astore_2
+               l1
+                aload_2
+                areturn
+               l2
+                astore 3
+               l7
+                ldc "null"
+                astore 2
+               l4
+                aload 2
+                areturn
+               l3
+                astore 4
+               l5
+                aload 2
+                areturn
+            }
+            this.&safeToStringWithTryCatch
+        """)
+
+        expect:
+            safeToString(str) == tostr
+
+        where:
+            str     |   tostr
+            'test'  |   'test'
+            null    |   'null'
+    }
+
     private static sizeOf2dLevel(int[][] arr) {
         arr.length==0?0:arr[0].length
     }
