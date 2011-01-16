@@ -39,137 +39,7 @@ import org.codehaus.groovy.transform.GroovyASTTransformation
 class BytecodeASTTransformation implements ASTTransformation, Opcodes {
     void visit(ASTNode[] nodes, SourceUnit source) {
         def meth = nodes[1]
-        def instructions = meth.code.statements
-        meth.code = new BytecodeSequence(new BytecodeInstruction() {
-            @Override
-            void visit(MethodVisitor mv) {
-                def labels = [:].withDefault { throw new IllegalArgumentException("Label [${it}] is not defined")}
-                // perform first visit to collect labels
-                instructions.each { ExpressionStatement stmt ->
-                    def expression = stmt.expression
-                    if (expression instanceof VariableExpression) {
-                        def text = expression.text
-                        if (text ==~ /l[0-9]+/) {
-                            labels.put(text, new Label())
-                        }
-                    }
-                }
-                instructions.each { ExpressionStatement stmt ->
-                    def expression = stmt.expression
-                    if (expression instanceof VariableExpression) {
-                        def text = expression.text.toLowerCase()
-                        if (text ==~ /l[0-9]+/) {
-                            mv.visitLabel(labels[text])
-                        } else if (text == 'vreturn') {
-                            // vreturn replaces the regular "return" bytecode statement
-                            mv.visitInsn(Opcodes.RETURN)
-                        } else if (Instructions.UNIT_OPS.contains(text)) {
-                            mv.visitInsn(Opcodes."${text.toUpperCase()}")
-                        } else if (text =~ /(load|store)_[0-4]/) {
-                            def (var, cpt) = text.split("_")
-                            mv.visitVarInsn(Opcodes."${var.toUpperCase()}", cpt as int)
-                        } else {
-                            throw new IllegalArgumentException("Bytecode operation unsupported : " + text);
-                        }
-                    } else if (expression instanceof MethodCallExpression) {
-                        if (expression.objectExpression instanceof VariableExpression && expression.arguments instanceof ArgumentListExpression) {
-                            if (expression.objectExpression.text == "this") {
-                                def opcode = expression.methodAsString.toUpperCase()
-                                ArgumentListExpression args = expression.arguments
-                                switch (opcode) {
-                                    case '_GOTO':
-                                        mv.visitJumpInsn(GOTO, labels[args.expressions[0].text])
-                                        break;
-                                    case '_NEW':
-                                        mv.visitTypeInsn(NEW, args.expressions[0].text)
-                                        break;
-                                    case '_INSTANCEOF':
-                                        mv.visitTypeInsn(INSTANCEOF, args.expressions[0].text)
-                                        break;
-                                    case 'IF_ICMPGE':
-                                    case 'IF_ICMPLE':
-                                    case 'IF_ICMPNE':
-                                    case 'IF_ICMPLT':
-                                    case 'IF_ICMPGT':
-                                    case 'IF_ICMPEQ':
-                                    case 'IF_ACMPEQ':
-                                    case 'IF_ACMPNE':
-                                    case 'IFEQ':
-                                    case 'IFGE':
-                                    case 'IFGT':
-                                    case 'IFLE':
-                                    case 'IFLT':
-                                    case 'IFNE':
-                                    case 'IFNONNULL':
-                                    case 'IFNULL':
-                                        mv.visitJumpInsn(Opcodes."${opcode}", labels[args.expressions[0].text])
-                                        break;
-                                    case 'ALOAD':
-                                    case 'ILOAD':
-                                    case 'LLOAD':
-                                    case 'FLOAD':
-                                    case 'DLOAD':
-                                    case 'ASTORE':
-                                    case 'ISTORE':
-                                    case 'FSTORE':
-                                    case 'LSTORE':
-                                    case 'DSTORE':
-                                        mv.visitVarInsn(Opcodes."${opcode}", args.expressions[0].text as int)
-                                        break;
-                                    case 'IINC':
-                                        mv.visitIincInsn(args.expressions[0].text as int, args.expressions[1].text as int)
-                                        break;
-                                    case 'INVOKEVIRTUAL':
-                                    case 'INVOKESTATIC':
-                                    case 'INVOKEINTERFACE':
-                                    case 'INVOKESPECIAL':
-                                        def classExpr = args.expressions[0].text
-                                        def (clazz, call) = extractClazzAndFieldOrMethod(classExpr, meth)
-                                        def signature = args.expressions[1].text
-                                        mv.visitMethodInsn(Opcodes."${opcode}", clazz, call, signature)
-                                        break;
-                                    case 'FRAME':
-                                        // frames only supported in JDK 1.6+
-                                        break;
-                                    case 'CHECKCAST':
-                                        mv.visitTypeInsn(CHECKCAST, args.expressions[0].text)
-                                        break;
-                                    case 'LDC':
-                                        mv.visitLdcInsn(args.expressions[0].value)
-                                        break;
-                                    case 'GETFIELD':
-                                    case 'PUTFIELD':
-                                    case 'GETSTATIC':
-                                    case 'PUTSTATIC':
-                                        def classExpr = args.expressions[0].text
-                                        def (clazz, field) = extractClazzAndFieldOrMethod(classExpr, meth)
-                                        mv.visitFieldInsn(Opcodes."${opcode}", clazz, field, args.expressions[1].text)
-                                        break;
-                                    case 'BIPUSH':
-                                    case 'SIPUSH':
-                                        mv.visitIntInsn(Opcodes."${opcode}", args.expressions[0].text as int)
-                                        break;
-                                    case 'NEWARRAY':
-                                        mv.visitIntInsn(Opcodes."${opcode}", Opcodes."${args.expressions[0].text.toUpperCase()}")
-                                        break;
-                                    case 'ANEWARRAY':
-                                        mv.visitTypeInsn(ANEWARRAY, args.expressions[0].text);
-                                        break;
-                                    default:
-                                        throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
-                                }
-                            } else {
-                                throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
-                            }
-                        } else {
-                            throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
-                        }
-                    } else {
-                        throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
-                    }
-                }
-            }
-        })
+        meth.code = new BytecodeSequence(new BytecodeGenerator(meth, meth.code.statements))
     }
 
     /**
@@ -187,6 +57,150 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
             clazz = classExpr.substring(0, index).replaceAll(/\./, '/')
             field = classExpr.substring(index + 1)
         }
-        return [clazz,field]
+        return [clazz, field]
+    }
+
+    /**
+     * Converts bytecode instructions from an AST tree into ASM bytecode generation code.
+     */
+    private static class BytecodeGenerator extends BytecodeInstruction {
+
+        private def meth;
+        private def instructions;
+
+        BytecodeGenerator(method, instructions) {
+            this.meth = method
+            this.instructions = instructions
+        }
+
+        @Override
+        void visit(MethodVisitor mv) {
+            def labels = [:].withDefault { throw new IllegalArgumentException("Label [${it}] is not defined")}
+            // perform first visit to collect labels
+            instructions.each { ExpressionStatement stmt ->
+                def expression = stmt.expression
+                if (expression instanceof VariableExpression) {
+                    def text = expression.text
+                    if (text ==~ /l[0-9]+/) {
+                        labels.put(text, new Label())
+                    }
+                }
+            }
+            instructions.each { ExpressionStatement stmt ->
+                def expression = stmt.expression
+                if (expression instanceof VariableExpression) {
+                    def text = expression.text.toLowerCase()
+                    if (text ==~ /l[0-9]+/) {
+                        mv.visitLabel(labels[text])
+                    } else if (text == 'vreturn') {
+                        // vreturn replaces the regular "return" bytecode statement
+                        mv.visitInsn(Opcodes.RETURN)
+                    } else if (Instructions.UNIT_OPS.contains(text)) {
+                        mv.visitInsn(Opcodes."${text.toUpperCase()}")
+                    } else if (text =~ /(load|store)_[0-4]/) {
+                        def (var, cpt) = text.split("_")
+                        mv.visitVarInsn(Opcodes."${var.toUpperCase()}", cpt as int)
+                    } else {
+                        throw new IllegalArgumentException("Bytecode operation unsupported : " + text);
+                    }
+                } else if (expression instanceof MethodCallExpression) {
+                    if (expression.objectExpression instanceof VariableExpression && expression.arguments instanceof ArgumentListExpression) {
+                        if (expression.objectExpression.text == "this") {
+                            def opcode = expression.methodAsString.toUpperCase()
+                            ArgumentListExpression args = expression.arguments
+                            switch (opcode) {
+                                case '_GOTO':
+                                    mv.visitJumpInsn(GOTO, labels[args.expressions[0].text])
+                                    break;
+                                case '_NEW':
+                                    mv.visitTypeInsn(NEW, args.expressions[0].text)
+                                    break;
+                                case '_INSTANCEOF':
+                                    mv.visitTypeInsn(INSTANCEOF, args.expressions[0].text)
+                                    break;
+                                case 'IF_ICMPGE':
+                                case 'IF_ICMPLE':
+                                case 'IF_ICMPNE':
+                                case 'IF_ICMPLT':
+                                case 'IF_ICMPGT':
+                                case 'IF_ICMPEQ':
+                                case 'IF_ACMPEQ':
+                                case 'IF_ACMPNE':
+                                case 'IFEQ':
+                                case 'IFGE':
+                                case 'IFGT':
+                                case 'IFLE':
+                                case 'IFLT':
+                                case 'IFNE':
+                                case 'IFNONNULL':
+                                case 'IFNULL':
+                                    mv.visitJumpInsn(Opcodes."${opcode}", labels[args.expressions[0].text])
+                                    break;
+                                case 'ALOAD':
+                                case 'ILOAD':
+                                case 'LLOAD':
+                                case 'FLOAD':
+                                case 'DLOAD':
+                                case 'ASTORE':
+                                case 'ISTORE':
+                                case 'FSTORE':
+                                case 'LSTORE':
+                                case 'DSTORE':
+                                    mv.visitVarInsn(Opcodes."${opcode}", args.expressions[0].text as int)
+                                    break;
+                                case 'IINC':
+                                    mv.visitIincInsn(args.expressions[0].text as int, args.expressions[1].text as int)
+                                    break;
+                                case 'INVOKEVIRTUAL':
+                                case 'INVOKESTATIC':
+                                case 'INVOKEINTERFACE':
+                                case 'INVOKESPECIAL':
+                                    def classExpr = args.expressions[0].text
+                                    def (clazz, call) = extractClazzAndFieldOrMethod(classExpr, meth)
+                                    def signature = args.expressions[1].text
+                                    mv.visitMethodInsn(Opcodes."${opcode}", clazz, call, signature)
+                                    break;
+                                case 'FRAME':
+                                    // frames only supported in JDK 1.6+
+                                    break;
+                                case 'CHECKCAST':
+                                    mv.visitTypeInsn(CHECKCAST, args.expressions[0].text)
+                                    break;
+                                case 'LDC':
+                                    mv.visitLdcInsn(args.expressions[0].value)
+                                    break;
+                                case 'GETFIELD':
+                                case 'PUTFIELD':
+                                case 'GETSTATIC':
+                                case 'PUTSTATIC':
+                                    def classExpr = args.expressions[0].text
+                                    def (clazz, field) = extractClazzAndFieldOrMethod(classExpr, meth)
+                                    mv.visitFieldInsn(Opcodes."${opcode}", clazz, field, args.expressions[1].text)
+                                    break;
+                                case 'BIPUSH':
+                                case 'SIPUSH':
+                                    mv.visitIntInsn(Opcodes."${opcode}", args.expressions[0].text as int)
+                                    break;
+                                case 'NEWARRAY':
+                                    mv.visitIntInsn(Opcodes."${opcode}", Opcodes."${args.expressions[0].text.toUpperCase()}")
+                                    break;
+                                case 'ANEWARRAY':
+                                    mv.visitTypeInsn(ANEWARRAY, args.expressions[0].text);
+                                    break;
+                                default:
+                                    throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                            }
+                        } else {
+                            throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                        }
+                    } else {
+                        throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                    }
+                } else {
+                    throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                }
+            }
+        }
+
     }
 }
