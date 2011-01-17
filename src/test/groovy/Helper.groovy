@@ -17,6 +17,19 @@
  *  /
  * /
  */
+def shell = new GroovyShell()
+def run = shell.evaluate("""
+                    @groovyx.ast.bytecode.Bytecode
+                    int[][] run(int x, int y) {
+                        iload_1
+                        iload_2
+                        return
+                        multianewarray '[[I',2
+                        return
+                        areturn
+                    }
+                    this.&run
+                """)
 
 println """
    L0

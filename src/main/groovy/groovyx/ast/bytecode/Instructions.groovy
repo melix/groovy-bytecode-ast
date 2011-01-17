@@ -76,6 +76,7 @@ class Instructions {
             "monitorenter", "monitorexit",
             "nop", "pop", "pop2",
             "vreturn", // should be "return"
+            "return", // added in 0.1.1
             "saload", "sastore",
             "swap"
     ]

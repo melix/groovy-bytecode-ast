@@ -45,7 +45,7 @@ class FieldsBytecodeSpock extends Specification {
                     aload_0
                     aload_1
                     putfield '.field','Ljava/lang/String;'
-                    vreturn
+                    return
                 }
             }
             def test = new Test()
@@ -76,7 +76,7 @@ class FieldsBytecodeSpock extends Specification {
                 public void setField(String field) {
                     aload_1
                     putstatic '.field','Ljava/lang/String;'
-                    vreturn
+                    return
                 }
             }
             def test = new Test()
