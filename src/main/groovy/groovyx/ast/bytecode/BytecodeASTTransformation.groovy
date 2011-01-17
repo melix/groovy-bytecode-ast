@@ -33,6 +33,7 @@ import org.codehaus.groovy.control.SourceUnit
 import org.codehaus.groovy.transform.ASTTransformation
 import org.codehaus.groovy.transform.GroovyASTTransformation
 import org.codehaus.groovy.ast.expr.*
+import org.codehaus.groovy.ast.stmt.Statement
 
 @GroovyASTTransformation(phase = CompilePhase.SEMANTIC_ANALYSIS)
 class BytecodeASTTransformation implements ASTTransformation, Opcodes {
@@ -76,18 +77,12 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
         void visit(MethodVisitor mv) {
             def labels = [:].withDefault { throw new IllegalArgumentException("Label [${it}] is not defined")}
             // perform first visit to collect labels
+            collectLabels(labels)
+            // second iteration transforms each instruction into bytecode visitor instructions
             instructions.each { stmt ->
-                if (stmt instanceof ExpressionStatement) {
-                    def expression = stmt.expression
-                    if (expression instanceof VariableExpression) {
-                        def text = expression.text
-                        if (text ==~ /l[0-9]+/) {
-                            labels.put(text, new Label())
-                        }
-                    }
+                if (stmt.statementLabel) {
+                    mv.visitLabel(labels[stmt.statementLabel])
                 }
-            }
-            instructions.each { stmt ->
                 if (stmt instanceof ReturnStatement) {
                     mv.visitInsn(Opcodes.RETURN)
                 } else if (stmt instanceof ExpressionStatement) {
@@ -218,6 +213,23 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                         }
                     } else {
                         throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                    }
+                }
+            }
+        }
+
+        private def collectLabels(labels) {
+            instructions.each { Statement stmt ->
+                if (stmt.statementLabel) {
+                    labels.put(stmt.statementLabel, new Label())
+                }
+                if (stmt instanceof ExpressionStatement) {
+                    def expression = stmt.expression
+                    if (expression instanceof VariableExpression) {
+                        def text = expression.text
+                        if (text ==~ /l[0-9]+/) {
+                            labels.put(text, new Label())
+                        }
                     }
                 }
             }

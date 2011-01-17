@@ -37,13 +37,13 @@ class BytecodeSpock extends Specification {
         def fib = shell.evaluate("""
             @groovyx.ast.bytecode.Bytecode
             int fib(int n) {
-                 l0
+                 l0:
                     iload 1
                     iconst_2
                     if_icmpge l1
                     iload 1
                     _goto l2
-                 l1
+                 l1:
                     aload 0
                     iload 1
                     iconst_2
@@ -55,7 +55,7 @@ class BytecodeSpock extends Specification {
                     isub
                     invokevirtual '.fib', '(I)I'
                     iadd
-                 l2
+                 l2:
                     ireturn
             }
             this.&fib
@@ -91,25 +91,25 @@ class BytecodeSpock extends Specification {
             */
             @groovyx.ast.bytecode.Bytecode
             int sum(int limit) {
-               l0
+               l0:
                 iconst_0
                 istore 2
-               l1
+               l1:
                 iconst_0
                 istore 3
-               l2
+               l2:
                 iload 3
                 iload 1
                 if_icmpge l3
-               l4
+               l4:
                 iload 2
                 iload 3
                 iadd
                 istore 2
-               l5
+               l5:
                 iinc 3,1
                 _goto l2
-               l3
+               l3:
                 iload 2
                 ireturn
             }
@@ -135,7 +135,7 @@ class BytecodeSpock extends Specification {
             */
             @groovyx.ast.bytecode.Bytecode
             String toStr(Object o) {
-               l0
+               l0:
                 aload 1
                 invokevirtual 'java.lang.Object.toString','()Ljava/lang/String;'
                 areturn
@@ -160,7 +160,7 @@ class BytecodeSpock extends Specification {
 
             @groovyx.ast.bytecode.Bytecode
             String echo2(String o) {
-               l0
+               l0:
                 aload 1
                 invokestatic '.echo','(Ljava/lang/String;)Ljava/lang/String;'
                 areturn
@@ -185,7 +185,7 @@ class BytecodeSpock extends Specification {
 
             @groovyx.ast.bytecode.Bytecode
             String echo2(String o) {
-               l0
+               l0:
                 aload 0
                 aload 1
                 invokespecial '.echo','(Ljava/lang/String;)Ljava/lang/String;'
@@ -314,13 +314,50 @@ class BytecodeSpock extends Specification {
                    2: l2,
                    5: l1,
                    default: l3)
-                l1
+                l1:
                     iconst_1
                     ireturn
-                l2
+                l2:
                     iconst_2
                     ireturn
-                l3
+                l3:
+                    iconst_3
+                    ireturn
+            }
+            this.&run
+        """)
+
+        expect:
+            run(x) == y
+
+        where:
+            x   |   y
+            0   |   3
+            1   |   3
+            2   |   2
+            3   |   3
+            4   |   3
+            5   |   1
+            6   |   3
+    }
+
+    def "test lookupswitch statement with custom labels"() {
+        def shell = new GroovyShell()
+        def run = shell.evaluate("""
+            @groovyx.ast.bytecode.Bytecode
+            int run(int i) {
+                iload_1
+                lookupswitch(
+                   2: section2,
+                   5: section1,
+                   default: section3)
+                section1:
+                    iconst_1
+                    ireturn
+                section2:
+                    iconst_2
+                    ireturn
+                section3:
                     iconst_3
                     ireturn
             }
@@ -351,13 +388,13 @@ class BytecodeSpock extends Specification {
                    0: l2,
                    1: l1,
                    default: l3)
-                l1
+                l1:
                     iconst_1
                     ireturn
-                l2
+                l2:
                     iconst_2
                     ireturn
-                l3
+                l3:
                     iconst_3
                     ireturn
             }
@@ -440,27 +477,27 @@ class BytecodeSpock extends Specification {
                 trycatchblock l0,l1,l3,null
                 trycatchblock l2,l4,l3,null
                 trycatchblock l3,l5,l3,null
-               l6
+               l6:
                 aconst_null
                 astore_2
-               l0
+               l0:
                 aload_1
                 invokevirtual 'java/lang/String.toString', '()Ljava/lang/String;'
                 astore_2
-               l1
+               l1:
                 aload_2
                 areturn
-               l2
+               l2:
                 astore 3
-               l7
+               l7:
                 ldc "null"
                 astore 2
-               l4
+               l4:
                 aload 2
                 areturn
-               l3
+               l3:
                 astore 4
-               l5
+               l5:
                 aload 2
                 areturn
             }
