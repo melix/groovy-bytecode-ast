@@ -150,6 +150,54 @@ class BytecodeSpock extends Specification {
             o << ["toto", 1, new GroovyShell()]
     }
 
+    def "tests alternative syntax for method calls on this"() {
+        def shell = new GroovyShell()
+        def methCall = shell.evaluate("""
+            import groovyx.ast.bytecode.Bytecode
+
+            int[] method(double[] d, String s) { [1, 2, 3, 4] as int[] }
+
+            @Bytecode
+            int[] callMethod() {
+                aload 0
+                iconst_0
+                newarray t_double
+                ldc ""
+                // equivalent of: invokevirtual ".method", "([DLjava/lang/String;)[I"
+                invokevirtual method(double[], String) >> int[]
+                areturn
+            }
+
+            this.&callMethod
+        """)
+
+        expect:
+            methCall().toList() == [1, 2, 3, 4]
+    }
+
+    def "tests alternative syntax for method calls on a class"() {
+        def shell = new GroovyShell()
+        def methCall = shell.evaluate("""
+            import groovyx.ast.bytecode.Bytecode
+            import groovyx.ast.bytecode.DummyClassWithWeirdMethod
+
+            @Bytecode
+            int[] callMethod() {
+                aload 0
+                iconst_0
+                newarray t_double
+                ldc ""
+                invokestatic DummyClassWithWeirdMethod.method(double[], String) >> int[]
+                areturn
+            }
+
+            this.&callMethod
+        """)
+
+        expect:
+            methCall().toList() == [1, 2, 3]
+    }
+
     def "test static method call"() {
         def shell = new GroovyShell()
         def toString = shell.evaluate("""
@@ -518,3 +566,6 @@ class BytecodeSpock extends Specification {
     }
 }
 
+class DummyClassWithWeirdMethod {
+    static int[] method(double[] d, String s) { [1, 2, 3] as int[] }
+}

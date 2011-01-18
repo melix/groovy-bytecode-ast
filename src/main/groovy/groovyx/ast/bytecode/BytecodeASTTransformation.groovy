@@ -20,6 +20,7 @@
 
 package groovyx.ast.bytecode
 
+import groovyjarjarasm.asm.Type
 import groovyjarjarasm.asm.Label
 import groovyjarjarasm.asm.MethodVisitor
 import groovyjarjarasm.asm.Opcodes
@@ -154,9 +155,42 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                     case 'INVOKESTATIC':
                                     case 'INVOKEINTERFACE':
                                     case 'INVOKESPECIAL':
+                                        def clazz, call, signature
+
+                                        // syntax of the form: invokevirtual SomeClass.method(double[], String) >> int[]
+                                        if (args.expressions[0] instanceof BinaryExpression && args.expressions[0].operation.text == '>>') {
+                                            // return type is what's on the right of the >> binary expression
+                                            def returnType = Type.getInternalName(args.expressions[0].rightExpression.type.typeClass)
+
+                                            MethodCallExpression methCall = args.expressions[0].leftExpression
+
+                                            // the callee is the subject on which the method is invoked
+                                            def callee = methCall.objectExpression
+
+                                            // either the type of the class is explicitely defined
+                                            if (callee instanceof ClassExpression) {
+                                                clazz = Type.getInternalName(callee.type.typeClass)
+                                            }
+                                            // or the call is made on this
+                                            else if (callee instanceof VariableExpression && callee.name == "this") {
+                                                clazz = meth.declaringClass.name
+                                            }
+                                            // otherwise it's an error
+                                            else {
+                                                throw new IllegalArgumentException("Expected a class expression or variable expression")
+                                            }
+
+                                            signature = '(' + methCall.arguments.expressions.collect { ClassExpression ce ->
+                                                        Type.getDescriptor(ce.type.typeClass)
+                                                    }.join('') + ')' + returnType
+
+                                            call = methCall.methodAsString
+                                        } else { // usual syntax
                                         def classExpr = args.expressions[0].text
-                                        def (clazz, call) = extractClazzAndFieldOrMethod(classExpr, meth)
-                                        def signature = args.expressions[1].text
+                                            (clazz, call) = extractClazzAndFieldOrMethod(classExpr, meth)
+                                            signature = args.expressions[1].text
+                                        }
+
                                         mv.visitMethodInsn(Opcodes."${opcode}", clazz, call, signature)
                                         break;
                                     case 'FRAME':
