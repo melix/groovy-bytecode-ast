@@ -91,19 +91,76 @@ class FieldsBytecodeSpock extends Specification {
         value << ['test','test2']
     }
 
+    def "should set and get static field value with improved syntax"() {
+        def shell = new GroovyShell()
+        def result = shell.evaluate("""
+            class Test {
+                private static int field;
+
+                @groovyx.ast.bytecode.Bytecode
+                public int getField() {
+                    getstatic field >> int
+                    ireturn
+                }
+
+                @groovyx.ast.bytecode.Bytecode
+                public void setField(int field) {
+                    iload_1
+                    putstatic field >> int
+                    return
+                }
+            }
+            def test = new Test()
+            test.field = $value
+            test.field
+        """)
+
+        expect:
+        result == value
+
+        where:
+        value << (0..10)
+    }
+
+    def "should set and get static Integer field value with improved syntax"() {
+        def shell = new GroovyShell()
+        def result = shell.evaluate("""
+            class Test {
+                private static Integer field;
+
+                @groovyx.ast.bytecode.Bytecode
+                public Integer getField() {
+                    getstatic field >> Integer
+                    areturn
+                }
+
+                @groovyx.ast.bytecode.Bytecode
+                public void setField(Integer field) {
+                    aload_1
+                    putstatic field >> Integer
+                    return
+                }
+            }
+            def test = new Test()
+            test.field = $value
+            test.field
+        """)
+
+        expect:
+        result == value
+
+        where:
+        value << (0..10)
+    }
+
     def "set a public field on an instance of a class with the groovyfied notation"() {
         def shell = new GroovyShell()
         def result = shell.evaluate("""
             import groovyx.ast.bytecode.*
 
-            class SomePerson {
-                public String name
-                public static int age = 33
-            }
-
             @Bytecode
             def getPerson() {
-                _new "SomePerson"
+                _new "groovyx/ast/bytecode/SomePerson"
                 dup
                 invokespecial SomePerson."<init>"() >> void
                 astore 1
@@ -143,3 +200,7 @@ class FieldsBytecodeSpock extends Specification {
     }
 }
 
+class SomePerson {
+    public String name
+    public static int age = 33
+}

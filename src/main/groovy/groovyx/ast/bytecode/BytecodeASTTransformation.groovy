@@ -84,6 +84,10 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
             // perform first visit to collect labels
             collectLabels(labels)
             // second iteration transforms each instruction into bytecode visitor instructions
+            visitInstructions(mv, labels)
+        }
+
+        private def visitInstructions(MethodVisitor mv, Map labels) {
             instructions.each { stmt ->
                 if (stmt.statementLabel) {
                     mv.visitLabel(labels[stmt.statementLabel])
@@ -165,7 +169,7 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                         if (args.expressions[0] instanceof BinaryExpression && args.expressions[0].operation.text == '>>') {
                                             // return type is what's on the right of the >> binary expression
                                             ClassNode returnTypeClassNode = args.expressions[0].rightExpression.type
-                                            def returnType = returnTypeClassNode == ClassHelper.VOID_TYPE ? "V" : BytecodeHelper.getClassInternalName(returnTypeClassNode)
+                                            def returnType = returnTypeClassNode == ClassHelper.VOID_TYPE ? "V" : BytecodeHelper.getTypeDescription(returnTypeClassNode)
 
                                             MethodCallExpression methCall = args.expressions[0].leftExpression
 
