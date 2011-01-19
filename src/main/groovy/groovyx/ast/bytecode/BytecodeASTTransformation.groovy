@@ -36,6 +36,9 @@ import org.codehaus.groovy.transform.GroovyASTTransformation
 import org.codehaus.groovy.ast.expr.*
 import org.codehaus.groovy.ast.stmt.Statement
 import org.codehaus.groovy.ast.Variable
+import org.codehaus.groovy.classgen.BytecodeHelper
+import org.codehaus.groovy.ast.ClassNode
+import org.codehaus.groovy.ast.ClassHelper
 
 @GroovyASTTransformation(phase = CompilePhase.SEMANTIC_ANALYSIS)
 class BytecodeASTTransformation implements ASTTransformation, Opcodes {
@@ -161,8 +164,8 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                         // syntax of the form: invokevirtual SomeClass.method(double[], String) >> int[]
                                         if (args.expressions[0] instanceof BinaryExpression && args.expressions[0].operation.text == '>>') {
                                             // return type is what's on the right of the >> binary expression
-                                            def returnTypeClass = args.expressions[0].rightExpression.type.typeClass
-                                            def returnType = returnTypeClass == Void ? "V" : Type.getInternalName(returnTypeClass)
+                                            ClassNode returnTypeClassNode = args.expressions[0].rightExpression.type
+                                            def returnType = returnTypeClassNode == ClassHelper.VOID_TYPE ? "V" : BytecodeHelper.getClassInternalName(returnTypeClassNode)
 
                                             MethodCallExpression methCall = args.expressions[0].leftExpression
 
@@ -171,7 +174,7 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
 
                                             // either the type of the class is explicitely defined
                                             if (callee instanceof ClassExpression) {
-                                                clazz = Type.getInternalName(callee.type.typeClass)
+                                                clazz = BytecodeHelper.getClassInternalName(callee.type)
                                             }
                                             // or the call is made on this
                                             else if (callee instanceof VariableExpression && callee.name == "this") {
@@ -214,7 +217,8 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                         if (args.expressions[0] instanceof BinaryExpression && args.expressions[0].operation.text == '>>') {
                                             BinaryExpression binExpr = args.expressions[0]
                                             if (binExpr.rightExpression instanceof ClassExpression) {
-                                                descriptor = Type.getDescriptor(args.expressions[0].rightExpression.type.typeClass)
+                                                //descriptor = Type.getDescriptor(args.expressions[0].rightExpression.type.typeClass)
+                                                descriptor = BytecodeHelper.getTypeDescription(args.expressions[0].rightExpression.type)
                                             } else {
                                                 throw new IllegalArgumentException("Expected a class expression on the right of '>>'")
                                             }
@@ -225,7 +229,8 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                             } else if (binExpr.leftExpression instanceof PropertyExpression) {
                                                 PropertyExpression propExp = binExpr.leftExpression
                                                 if (propExp.objectExpression instanceof ClassExpression) {
-                                                    clazz = Type.getInternalName(propExp.objectExpression.type.typeClass)
+                                                    //clazz = Type.getInternalName(propExp.objectExpression.type.typeClass)
+                                                    clazz = BytecodeHelper.getClassInternalName(propExp.objectExpression.type)
                                                     field = propExp.property.text
                                                 } else {
                                                     throw new IllegalArgumentException(

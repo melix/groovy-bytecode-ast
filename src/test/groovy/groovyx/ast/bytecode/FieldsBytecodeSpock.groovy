@@ -96,11 +96,16 @@ class FieldsBytecodeSpock extends Specification {
         def result = shell.evaluate("""
             import groovyx.ast.bytecode.*
 
+            class SomePerson {
+                public String name
+                public static int age = 33
+            }
+
             @Bytecode
             def getPerson() {
-                _new "groovyx/ast/bytecode/SomePerson"
+                _new "SomePerson"
                 dup
-                invokespecial SomePerson."<init>"() >> Void
+                invokespecial SomePerson."<init>"() >> void
                 astore 1
                 aload 1
                 ldc "Guillaume"
@@ -138,7 +143,3 @@ class FieldsBytecodeSpock extends Specification {
     }
 }
 
-class SomePerson {
-    public String name
-    public static int age = 33
-}
