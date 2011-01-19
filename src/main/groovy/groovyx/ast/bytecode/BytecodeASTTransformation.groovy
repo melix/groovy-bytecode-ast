@@ -101,7 +101,7 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                     } else if (expression instanceof MethodCallExpression) {
                         visitMethodCallExpression(expression, mv, labels, meth)
                     } else {
-                        throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                        unsupportedBytecodeOperation(expression)
                     }
                 }
             }
@@ -117,10 +117,11 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                             mv.visitJumpInsn(GOTO, labels[args.expressions[0].text])
                             break;
                         case '_NEW':
-                            mv.visitTypeInsn(NEW, args.expressions[0].text)
+                        case 'NEWOBJECT':
+                            mv.visitTypeInsn(NEW, internalClassName(args.expressions[0]))
                             break;
                         case '_INSTANCEOF':
-                            mv.visitTypeInsn(INSTANCEOF, args.expressions[0].text)
+                            mv.visitTypeInsn(INSTANCEOF, internalClassName(args.expressions[0]))
                             break;
                         case 'IF_ICMPGE':
                         case 'IF_ICMPLE':
@@ -165,7 +166,7 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                             // frames only supported in JDK 1.6+
                             break;
                         case 'CHECKCAST':
-                            mv.visitTypeInsn(CHECKCAST, args.expressions[0].text)
+                            mv.visitTypeInsn(CHECKCAST, internalClassName(args.expressions[0]))
                             break;
                         case 'LDC':
                             mv.visitLdcInsn(args.expressions[0].value)
@@ -181,35 +182,84 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                             mv.visitIntInsn(Opcodes."${opcode}", args.expressions[0].text as int)
                             break;
                         case 'NEWARRAY':
-                            mv.visitIntInsn(Opcodes."${opcode}", Opcodes."${args.expressions[0].text.toUpperCase()}")
+                            if (args.expressions[0] instanceof ConstantExpression) {
+                                mv.visitIntInsn(Opcodes."${opcode}", Opcodes."${args.expressions[0].text.toUpperCase()}")
+                            } else if (args.expressions[0] instanceof ClassExpression) {
+                                mv.visitIntInsn(Opcodes."${opcode}", Opcodes."T_${args.expressions[0].type.nameWithoutPackage.toUpperCase()}")
+                            } else {
+                                unsupportedBytecodeOperation(expression)
+                            }
                             break;
                         case 'ANEWARRAY':
-                            mv.visitTypeInsn(ANEWARRAY, args.expressions[0].text);
+                            mv.visitTypeInsn(ANEWARRAY, internalClassName(args.expressions[0]));
                             break;
                         case 'MULTIANEWARRAY':
-                            mv.visitMultiANewArrayInsn(args.expressions[0].text, args.expressions[1].text as int)
+                            if (args.expressions.size()==2) {
+                                // legacy syntax
+                                mv.visitMultiANewArrayInsn(internalClassName(args.expressions[0]), args.expressions[1].text as int)
+                            } else {
+                                unsupportedBytecodeOperation(expression)
+                            }
                             break;
                         case 'TRYCATCHBLOCK':
                             if (args.expressions.size() != 4) throw new IllegalArgumentException("Bytecode operation unsupported [trycatchblock requires exactly 4 parameters] : " + expression);
                             def tcargs = args.expressions
-                            mv.visitTryCatchBlock(labels[tcargs[0].text], labels[tcargs[1].text], labels[tcargs[2].text], tcargs[3].value)
+                            mv.visitTryCatchBlock(labels[tcargs[0].text], labels[tcargs[1].text], labels[tcargs[2].text], internalClassName(tcargs[3]))
                             break;
                         default:
-                            throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                            unsupportedBytecodeOperation(expression)
                     }
                 } else {
-                    throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                    unsupportedBytecodeOperation(expression)
                 }
             } else if (expression.objectExpression instanceof VariableExpression && expression.arguments instanceof TupleExpression) {
                 if (expression.method.text == 'lookupswitch') {
                     processLookupSwitch(expression, mv, labels)
                 } else if (expression.method.text == 'tableswitch') {
                     processTableSwitch(expression, mv, labels)
+                } else if (expression.method.text == 'go' || expression.method.text=='instance') {
+                    if (expression.arguments instanceof TupleExpression) {
+                        TupleExpression args = expression.arguments
+                        if (args.expressions.size()==1) {
+                            def arg = args.expressions[0]
+                            if (arg instanceof NamedArgumentListExpression) {
+                                arg.mapEntryExpressions.each { MapEntryExpression mapEntryExpression ->
+                                    if (mapEntryExpression.keyExpression.text == 'to' && expression.method.text=='go') {
+                                        mv.visitJumpInsn(GOTO, labels[mapEntryExpression.valueExpression.text])
+                                    } else if (mapEntryExpression.keyExpression.text == 'of' && expression.method.text=='instance') {
+                                        mv.visitTypeInsn(INSTANCEOF, internalClassName(mapEntryExpression.valueExpression))
+                                    } else {
+                                        throw new IllegalArgumentException("Bytecode operation supported : $expression")
+                                    }
+                                }
+                            } else {
+                                unsupportedBytecodeOperation(expression);
+                            }
+                        } else {
+                            unsupportedBytecodeOperation(expression);
+                        }
+                    } else {
+                        unsupportedBytecodeOperation(expression)
+                    }
                 } else {
-                    throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                    unsupportedBytecodeOperation(expression)
                 }
             } else {
-                throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                unsupportedBytecodeOperation(expression)
+            }
+        }
+
+        private static unsupportedBytecodeOperation(expression) {
+            throw new IllegalArgumentException("Bytecode operation unsupported : " + expression)
+        }
+
+        private static String internalClassName(Expression expr) {
+            if (expr instanceof ConstantExpression) {
+                expr.value==null?null:expr.text
+            } else if (expr instanceof ClassExpression) {
+                BytecodeHelper.getClassInternalName(expr.type)
+            } else {
+                unsupportedBytecodeOperation(expr)
             }
         }
 
@@ -347,7 +397,7 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                 if (defaultLabel == null) throw new IllegalArgumentException("Bytecode operation unsupported [lookupswitch must provide default label]: " + expression);
                 mv.visitLookupSwitchInsn(defaultLabel, values as int[], targetLabels as Label[])
             } else {
-                throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                unsupportedBytecodeOperation(expression)
             }
         }
 
@@ -374,7 +424,7 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                 }
                 mv.visitTableSwitchInsn(values.min(), values.max(), defaultLabel, targetLabels as Label[])
             } else {
-                throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                unsupportedBytecodeOperation(expression)
             }
         }
 
