@@ -90,4 +90,55 @@ class FieldsBytecodeSpock extends Specification {
         where:
         value << ['test','test2']
     }
+
+    def "set a public field on an instance of a class with the groovyfied notation"() {
+        def shell = new GroovyShell()
+        def result = shell.evaluate("""
+            import groovyx.ast.bytecode.*
+
+            @Bytecode
+            def getPerson() {
+                _new "groovyx/ast/bytecode/SomePerson"
+                dup
+                invokespecial SomePerson."<init>"() >> Void
+                astore 1
+                aload 1
+                ldc "Guillaume"
+                putfield SomePerson.name >> String
+                aload 1
+                areturn
+            }
+            getPerson().name
+        """)
+
+        expect:
+        result == "Guillaume"
+    }
+
+    def "get a public static field with the groovyfied notation"() {
+        def shell = new GroovyShell()
+        def result = shell.evaluate("""
+            import groovyx.ast.bytecode.*
+
+            class Someone {
+                public static int age = 33
+
+                @Bytecode
+                int getAge() {
+                    getstatic age >> int
+                    ireturn
+                }
+            }
+
+            new Someone().getAge()
+        """)
+
+        expect:
+        result == 33
+    }
+}
+
+class SomePerson {
+    public String name
+    public static int age = 33
 }

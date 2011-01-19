@@ -35,6 +35,7 @@ import org.codehaus.groovy.transform.ASTTransformation
 import org.codehaus.groovy.transform.GroovyASTTransformation
 import org.codehaus.groovy.ast.expr.*
 import org.codehaus.groovy.ast.stmt.Statement
+import org.codehaus.groovy.ast.Variable
 
 @GroovyASTTransformation(phase = CompilePhase.SEMANTIC_ANALYSIS)
 class BytecodeASTTransformation implements ASTTransformation, Opcodes {
@@ -160,7 +161,8 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                         // syntax of the form: invokevirtual SomeClass.method(double[], String) >> int[]
                                         if (args.expressions[0] instanceof BinaryExpression && args.expressions[0].operation.text == '>>') {
                                             // return type is what's on the right of the >> binary expression
-                                            def returnType = Type.getInternalName(args.expressions[0].rightExpression.type.typeClass)
+                                            def returnTypeClass = args.expressions[0].rightExpression.type.typeClass
+                                            def returnType = returnTypeClass == Void ? "V" : Type.getInternalName(returnTypeClass)
 
                                             MethodCallExpression methCall = args.expressions[0].leftExpression
 
@@ -206,9 +208,40 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                     case 'PUTFIELD':
                                     case 'GETSTATIC':
                                     case 'PUTSTATIC':
-                                        def classExpr = args.expressions[0].text
-                                        def (clazz, field) = extractClazzAndFieldOrMethod(classExpr, meth)
-                                        mv.visitFieldInsn(Opcodes."${opcode}", clazz, field, args.expressions[1].text)
+                                        def clazz, field, descriptor
+
+                                        // syntax of the form: getstatic name >> String
+                                        if (args.expressions[0] instanceof BinaryExpression && args.expressions[0].operation.text == '>>') {
+                                            BinaryExpression binExpr = args.expressions[0]
+                                            if (binExpr.rightExpression instanceof ClassExpression) {
+                                                descriptor = Type.getDescriptor(args.expressions[0].rightExpression.type.typeClass)
+                                            } else {
+                                                throw new IllegalArgumentException("Expected a class expression on the right of '>>'")
+                                            }
+
+                                            if (binExpr.leftExpression instanceof Variable) {
+                                                clazz = meth.declaringClass.name
+                                                field = binExpr.leftExpression.name
+                                            } else if (binExpr.leftExpression instanceof PropertyExpression) {
+                                                PropertyExpression propExp = binExpr.leftExpression
+                                                if (propExp.objectExpression instanceof ClassExpression) {
+                                                    clazz = Type.getInternalName(propExp.objectExpression.type.typeClass)
+                                                    field = propExp.property.text
+                                                } else {
+                                                    throw new IllegalArgumentException(
+                                                            "Expected a class expression but got a ${propExp.objectExpression.class.simpleName}")
+                                                }
+                                            } else {
+                                                throw new IllegalArgumentException("Expected a variable or a property on the left of '>>")
+                                            }
+
+                                        } else { // usual syntax
+                                            def classExpr = args.expressions[0].text
+                                            (clazz, field) = extractClazzAndFieldOrMethod(classExpr, meth)
+                                            descriptor = args.expressions[1].text
+                                        }
+
+                                        mv.visitFieldInsn(Opcodes."${opcode}", clazz, field, descriptor)
                                         break;
                                     case 'BIPUSH':
                                     case 'SIPUSH':
