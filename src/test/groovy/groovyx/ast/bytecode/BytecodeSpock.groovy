@@ -179,7 +179,10 @@ class BytecodeSpock extends Specification {
         def shell = new GroovyShell()
         def methCall = shell.evaluate("""
             import groovyx.ast.bytecode.Bytecode
-            import groovyx.ast.bytecode.DummyClassWithWeirdMethod
+
+            class DummyClassWithWeirdMethod {
+                static int[] method(double[] d, String s) { [1, 2, 3] as int[] }
+            }
 
             @Bytecode
             int[] callMethod() {
@@ -564,8 +567,4 @@ class BytecodeSpock extends Specification {
     private static sizeOf2dLevel(int[][] arr) {
         arr.length==0?0:arr[0].length
     }
-}
-
-class DummyClassWithWeirdMethod {
-    static int[] method(double[] d, String s) { [1, 2, 3] as int[] }
 }
