@@ -48,6 +48,25 @@ class TypeCastingBytecodeSpock extends Specification {
             o << ['String',new StringBuffer('test'), new StringBuilder('Spock')]
     }
 
+    def "should cast object as string with groovified syntax"() {
+        def shell = new GroovyShell()
+        def cast = shell.evaluate("""
+            @groovyx.ast.bytecode.Bytecode
+            CharSequence cast(Object o) {
+                aload 1
+                checkcast CharSequence
+                areturn
+            }
+            this.&cast
+        """)
+
+        expect:
+            cast(o) == o
+
+        where:
+            o << ['String',new StringBuffer('test'), new StringBuilder('Spock')]
+    }
+
     def "should fail casting as char sequence"() {
         def shell = new GroovyShell()
         def cast = shell.evaluate("""
@@ -341,4 +360,55 @@ class TypeCastingBytecodeSpock extends Specification {
              x << [0d,1d,1.5d,3d, Double.MAX_VALUE]
      }
 
+    def "tests instanceof with legacy syntax"() {
+        def shell = new GroovyShell()
+        def className = shell.evaluate("""
+          @groovyx.ast.bytecode.Bytecode
+          public String className(Object a) {
+            aload 1
+            _instanceof 'java/lang/String'
+            ifeq l0
+            ldc "java.lang.String"
+            areturn
+           l0:
+            aload 1
+            invokevirtual 'java/lang/Object.getClass','()Ljava/lang/Class;'
+            invokevirtual 'java/lang/Class.getCanonicalName','()Ljava/lang/String;'
+            areturn
+          }
+          this.&className
+        """)
+
+        expect:
+            className(o) == o.class.canonicalName
+
+        where:
+            o << ["aaa",new Integer(5),1i]
+    }
+
+    def "tests instanceof with Groovified syntax"() {
+        def shell = new GroovyShell()
+        def className = shell.evaluate("""
+          @groovyx.ast.bytecode.Bytecode
+          public String className(Object a) {
+            aload 1
+            instance of: String
+            ifeq l0
+            ldc "java.lang.String"
+            areturn
+           l0:
+            aload 1
+            invokevirtual Object.getClass() >> Class
+            invokevirtual Class.getCanonicalName() >> String
+            areturn
+          }
+          this.&className
+        """)
+
+        expect:
+            className(o) == o.class.canonicalName
+
+        where:
+            o << ["aaa",new Integer(5),1i]
+    }
 }

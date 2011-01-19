@@ -311,6 +311,31 @@ class BytecodeSpock extends Specification {
             i << (0..10)
     }
 
+    def "should instantiate and return integer with autoboxing and new syntax"() {
+         def shell = new GroovyShell()
+         def run = shell.evaluate("""
+             /**
+             * return new Integer(i)
+             */
+             @groovyx.ast.bytecode.Bytecode
+             int run(int i) {
+                 newobject Integer
+                 dup
+                 iload 1
+                 invokespecial Integer.'<init>'(int) >> void
+                 invokevirtual Integer.intValue() >> int
+                 ireturn
+             }
+             this.&run
+         """)
+
+         expect:
+             run(i) == i
+
+         where:
+             i << (0..10)
+    }
+
     def "should pop value on stack"() {
         def shell = new GroovyShell()
         def run = shell.evaluate("""
@@ -353,6 +378,25 @@ class BytecodeSpock extends Specification {
 
         where:
             i << (0..10)
+    }
+
+    def "should not accept (go of:) or (instance to:)"() {
+        def shell = new GroovyShell()
+
+        when:
+            shell.evaluate("""
+            @groovyx.ast.bytecode.Bytecode
+            void test() {
+                $instr
+                return
+            }
+        """)
+
+        then:
+            thrown(MultipleCompilationErrorsException)
+
+        where:
+            instr << ["go of: label", "instance to: Class"]
     }
 
     def "test lookupswitch statement"() {
@@ -519,6 +563,33 @@ class BytecodeSpock extends Specification {
             str << ['test',null]
     }
 
+    def "should handle null pointer exception safely with new syntax"() {
+        def shell = new GroovyShell()
+        def safeToString = shell.evaluate("""
+            @groovyx.ast.bytecode.Bytecode
+            public String safeToStringWithTryCatch(String str) {
+                trycatchblock l0,l1,l2,NullPointerException
+            l0
+                aload 1
+                invokevirtual String.toString() >> String
+            l1
+                areturn
+            l2
+                astore 2
+            l3
+                aconst_null
+                areturn
+            }
+            this.&safeToStringWithTryCatch
+        """)
+
+        expect:
+            safeToString(str) == str
+
+        where:
+            str << ['test',null]
+    }
+
     def "should handle null pointer exception safely with not null return"() {
         def shell = new GroovyShell()
         def safeToString = shell.evaluate("""
@@ -563,6 +634,99 @@ class BytecodeSpock extends Specification {
             'test'  |   'test'
             null    |   'null'
     }
+
+    def "should handle null pointer exception safely with not null return and new syntax"() {
+        def shell = new GroovyShell()
+        def safeToString = shell.evaluate("""
+            @groovyx.ast.bytecode.Bytecode
+            public String safeToStringWithTryCatch(String str) {
+                trycatchblock l0,l1,l2,NullPointerException
+                trycatchblock l0,l1,l3,null
+                trycatchblock l2,l4,l3,null
+                trycatchblock l3,l5,l3,null
+               l6:
+                aconst_null
+                astore_2
+               l0:
+                aload_1
+                invokevirtual String.toString() >> String
+                astore_2
+               l1:
+                aload_2
+                areturn
+               l2:
+                astore 3
+               l7:
+                ldc "null"
+                astore 2
+               l4:
+                aload 2
+                areturn
+               l3:
+                astore 4
+               l5:
+                aload 2
+                areturn
+            }
+            this.&safeToStringWithTryCatch
+        """)
+
+        expect:
+            safeToString(str) == tostr
+
+        where:
+            str     |   tostr
+            'test'  |   'test'
+            null    |   'null'
+    }
+
+    def "generate a Fibonacci method using alternate go to: syntax"() {
+        def shell = new GroovyShell()
+        def fib = shell.evaluate("""
+            @groovyx.ast.bytecode.Bytecode
+            int fib(int n) {
+                 l0:
+                    iload 1
+                    iconst_2
+                    if_icmpge l1
+                    iload 1
+                    go to: l2
+                 l1:
+                    aload 0
+                    iload 1
+                    iconst_2
+                    isub
+                    invokevirtual '.fib','(I)I'
+                    aload 0
+                    iload 1
+                    iconst_1
+                    isub
+                    invokevirtual '.fib', '(I)I'
+                    iadd
+                 l2:
+                    ireturn
+            }
+            this.&fib
+        """)
+
+        expect:
+            fib(i) == reference
+
+        where:
+            i   | reference
+            0   | 0
+            1   | 1
+            2   | 1
+            3   | 2
+            4   | 3
+            5   | 5
+            6   | 8
+            7   | 13
+            8   | 21
+            9   | 34
+            10  | 55
+    }
+
 
     private static sizeOf2dLevel(int[][] arr) {
         arr.length==0?0:arr[0].length

@@ -97,6 +97,123 @@ class PrimitiveTypesBytecodeSpock extends Specification {
             x << (0..10)
     }
 
+    def "test array creation with legacy syntax"() {
+        def shell = new GroovyShell()
+        def makeArray = shell.evaluate("""
+              @groovyx.ast.bytecode.Bytecode
+              public Object[] makeArray(int a) {
+                iload 1
+                anewarray 'java/lang/Object'
+                areturn
+              }
+              this.&makeArray
+        """)
+
+        expect:
+            makeArray(size).length == size
+
+        where:
+            size << (0..10)
+    }
+
+    def "test array creation with groovified syntax"() {
+        def shell = new GroovyShell()
+        def makeArray = shell.evaluate("""
+              @groovyx.ast.bytecode.Bytecode
+              public Object[] makeArray(int a) {
+                iload 1
+                anewarray Object
+                areturn
+              }
+              this.&makeArray
+        """)
+
+        expect:
+            makeArray(size).length == size
+
+        where:
+            size << (0..10)
+    }
+
+    def "test bidimensional array creation with legacy syntax"() {
+        def shell = new GroovyShell()
+        def makeArray = shell.evaluate("""
+              @groovyx.ast.bytecode.Bytecode
+              public Object[][] makeArray(int a, int b) {
+                iload 1
+                iload 2
+                multianewarray '[[Ljava/lang/Object;',2
+                areturn
+              }
+              this.&makeArray
+        """)
+
+        expect:
+            makeArray(size,size).length == size
+
+        where:
+            size << (0..10)
+    }
+
+    def "test bidimensional array creation with groovified syntax"() {
+        def shell = new GroovyShell()
+        def makeArray = shell.evaluate("""
+              @groovyx.ast.bytecode.Bytecode
+              public Object[][] makeArray(int a, int b) {
+                iload 1
+                iload 2
+                multianewarray Object[][],2
+                areturn
+              }
+              this.&makeArray
+        """)
+
+        expect:
+            makeArray(size,size).length == size
+
+        where:
+            size << (0..10)
+    }
+
+    def "test primitive int array creation with groovified syntax"() {
+        def shell = new GroovyShell()
+        def makeArray = shell.evaluate("""
+              @groovyx.ast.bytecode.Bytecode
+              public int[] makeArray(int a) {
+                iload 1
+                newarray int
+                areturn
+              }
+              this.&makeArray
+        """)
+
+        expect:
+            makeArray(size).length == size
+
+        where:
+            size << (0..10)
+    }
+
+    def "test primitive bidimensional int array creation with groovified syntax"() {
+        def shell = new GroovyShell()
+        def makeArray = shell.evaluate("""
+              @groovyx.ast.bytecode.Bytecode
+              public int[][] makeArray(int a) {
+                iload 1
+                anewarray int[]
+                areturn
+              }
+              this.&makeArray
+        """)
+
+        expect:
+            makeArray(size).length == size
+
+        where:
+            size << (0..10)
+    }
+
+
     def "test long square"() {
         def shell = new GroovyShell()
         def square = shell.evaluate("""

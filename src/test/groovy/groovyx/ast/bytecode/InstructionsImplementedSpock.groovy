@@ -112,12 +112,13 @@ class InstructionsImplementedSpock extends Specification {
     def "all those one-arg instructions should be interpreted by the AST transform"() {
         def shell = new GroovyShell()
         def errorCollector = null
+        def otherError = null
         when:
             try {
                 shell.evaluate("""
                     @groovyx.ast.bytecode.Bytecode
                     void test() {
-                        $instruction arg
+                        $instruction 'arg'
                     }
                     throw new org.codehaus.groovy.control.MultipleCompilationErrorsException()
                 """)
@@ -125,9 +126,14 @@ class InstructionsImplementedSpock extends Specification {
                  // not a problem, that's not what we're testing
             } catch (MultipleCompilationErrorsException e) {
                 errorCollector = e.errorCollector
+            } catch (Throwable e) {
+                otherError = e
+                println "Error on [$instruction]"
+                e.printStackTrace()
             }
         then:
             isSupported(instruction,errorCollector)
+            otherError == null
         where:
             instruction << Instructions.UNARY_OPS
     }
