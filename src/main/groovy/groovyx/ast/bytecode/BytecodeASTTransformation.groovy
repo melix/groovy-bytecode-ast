@@ -186,6 +186,8 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                 mv.visitIntInsn(Opcodes."${opcode}", Opcodes."${args.expressions[0].text.toUpperCase()}")
                             } else if (args.expressions[0] instanceof ClassExpression) {
                                 mv.visitIntInsn(Opcodes."${opcode}", Opcodes."T_${args.expressions[0].type.nameWithoutPackage.toUpperCase()}")
+                            } else if (args.expressions[0] instanceof VariableExpression) {
+                                mv.visitIntInsn(Opcodes."${opcode}", Opcodes."${args.expressions[0].text.toUpperCase()}")
                             } else {
                                 unsupportedBytecodeOperation(expression)
                             }
