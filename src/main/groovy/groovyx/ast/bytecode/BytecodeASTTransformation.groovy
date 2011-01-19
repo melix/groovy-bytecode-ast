@@ -97,200 +97,216 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                 } else if (stmt instanceof ExpressionStatement) {
                     def expression = stmt.expression
                     if (expression instanceof VariableExpression) {
-                        def text = expression.text.toLowerCase()
-                        if (text ==~ /l[0-9]+/) {
-                            mv.visitLabel(labels[text])
-                        } else if (text == 'vreturn') {
-                            // vreturn replaces the regular "return" bytecode statement
-                            mv.visitInsn(Opcodes.RETURN)
-                        } else if (Instructions.UNIT_OPS.contains(text)) {
-                            mv.visitInsn(Opcodes."${text.toUpperCase()}")
-                        } else if (text =~ /(load|store)_[0-4]/) {
-                            def (var, cpt) = text.split("_")
-                            mv.visitVarInsn(Opcodes."${var.toUpperCase()}", cpt as int)
-                        } else {
-                            throw new IllegalArgumentException("Bytecode operation unsupported : " + text);
-                        }
+                        visitVariableExpression(expression, mv, labels)
                     } else if (expression instanceof MethodCallExpression) {
-                        if (expression.objectExpression instanceof VariableExpression && expression.arguments instanceof ArgumentListExpression) {
-                            if (expression.objectExpression.text == "this") {
-                                def opcode = expression.methodAsString.toUpperCase()
-                                ArgumentListExpression args = expression.arguments
-                                switch (opcode) {
-                                    case '_GOTO':
-                                        mv.visitJumpInsn(GOTO, labels[args.expressions[0].text])
-                                        break;
-                                    case '_NEW':
-                                        mv.visitTypeInsn(NEW, args.expressions[0].text)
-                                        break;
-                                    case '_INSTANCEOF':
-                                        mv.visitTypeInsn(INSTANCEOF, args.expressions[0].text)
-                                        break;
-                                    case 'IF_ICMPGE':
-                                    case 'IF_ICMPLE':
-                                    case 'IF_ICMPNE':
-                                    case 'IF_ICMPLT':
-                                    case 'IF_ICMPGT':
-                                    case 'IF_ICMPEQ':
-                                    case 'IF_ACMPEQ':
-                                    case 'IF_ACMPNE':
-                                    case 'IFEQ':
-                                    case 'IFGE':
-                                    case 'IFGT':
-                                    case 'IFLE':
-                                    case 'IFLT':
-                                    case 'IFNE':
-                                    case 'IFNONNULL':
-                                    case 'IFNULL':
-                                        mv.visitJumpInsn(Opcodes."${opcode}", labels[args.expressions[0].text])
-                                        break;
-                                    case 'ALOAD':
-                                    case 'ILOAD':
-                                    case 'LLOAD':
-                                    case 'FLOAD':
-                                    case 'DLOAD':
-                                    case 'ASTORE':
-                                    case 'ISTORE':
-                                    case 'FSTORE':
-                                    case 'LSTORE':
-                                    case 'DSTORE':
-                                        mv.visitVarInsn(Opcodes."${opcode}", args.expressions[0].text as int)
-                                        break;
-                                    case 'IINC':
-                                        mv.visitIincInsn(args.expressions[0].text as int, args.expressions[1].text as int)
-                                        break;
-                                    case 'INVOKEVIRTUAL':
-                                    case 'INVOKESTATIC':
-                                    case 'INVOKEINTERFACE':
-                                    case 'INVOKESPECIAL':
-                                        def clazz, call, signature
-
-                                        // syntax of the form: invokevirtual SomeClass.method(double[], String) >> int[]
-                                        if (args.expressions[0] instanceof BinaryExpression && args.expressions[0].operation.text == '>>') {
-                                            // return type is what's on the right of the >> binary expression
-                                            ClassNode returnTypeClassNode = args.expressions[0].rightExpression.type
-                                            def returnType = returnTypeClassNode == ClassHelper.VOID_TYPE ? "V" : BytecodeHelper.getTypeDescription(returnTypeClassNode)
-
-                                            MethodCallExpression methCall = args.expressions[0].leftExpression
-
-                                            // the callee is the subject on which the method is invoked
-                                            def callee = methCall.objectExpression
-
-                                            // either the type of the class is explicitely defined
-                                            if (callee instanceof ClassExpression) {
-                                                clazz = BytecodeHelper.getClassInternalName(callee.type)
-                                            }
-                                            // or the call is made on this
-                                            else if (callee instanceof VariableExpression && callee.name == "this") {
-                                                clazz = meth.declaringClass.name
-                                            }
-                                            // otherwise it's an error
-                                            else {
-                                                throw new IllegalArgumentException("Expected a class expression or variable expression")
-                                            }
-
-                                            signature = '(' + methCall.arguments.expressions.collect { ClassExpression ce ->
-                                                        Type.getDescriptor(ce.type.typeClass)
-                                                    }.join('') + ')' + returnType
-
-                                            call = methCall.methodAsString
-                                        } else { // usual syntax
-                                        def classExpr = args.expressions[0].text
-                                            (clazz, call) = extractClazzAndFieldOrMethod(classExpr, meth)
-                                            signature = args.expressions[1].text
-                                        }
-
-                                        mv.visitMethodInsn(Opcodes."${opcode}", clazz, call, signature)
-                                        break;
-                                    case 'FRAME':
-                                        // frames only supported in JDK 1.6+
-                                        break;
-                                    case 'CHECKCAST':
-                                        mv.visitTypeInsn(CHECKCAST, args.expressions[0].text)
-                                        break;
-                                    case 'LDC':
-                                        mv.visitLdcInsn(args.expressions[0].value)
-                                        break;
-                                    case 'GETFIELD':
-                                    case 'PUTFIELD':
-                                    case 'GETSTATIC':
-                                    case 'PUTSTATIC':
-                                        def clazz, field, descriptor
-
-                                        // syntax of the form: getstatic name >> String
-                                        if (args.expressions[0] instanceof BinaryExpression && args.expressions[0].operation.text == '>>') {
-                                            BinaryExpression binExpr = args.expressions[0]
-                                            if (binExpr.rightExpression instanceof ClassExpression) {
-                                                //descriptor = Type.getDescriptor(args.expressions[0].rightExpression.type.typeClass)
-                                                descriptor = BytecodeHelper.getTypeDescription(args.expressions[0].rightExpression.type)
-                                            } else {
-                                                throw new IllegalArgumentException("Expected a class expression on the right of '>>'")
-                                            }
-
-                                            if (binExpr.leftExpression instanceof Variable) {
-                                                clazz = meth.declaringClass.name
-                                                field = binExpr.leftExpression.name
-                                            } else if (binExpr.leftExpression instanceof PropertyExpression) {
-                                                PropertyExpression propExp = binExpr.leftExpression
-                                                if (propExp.objectExpression instanceof ClassExpression) {
-                                                    //clazz = Type.getInternalName(propExp.objectExpression.type.typeClass)
-                                                    clazz = BytecodeHelper.getClassInternalName(propExp.objectExpression.type)
-                                                    field = propExp.property.text
-                                                } else {
-                                                    throw new IllegalArgumentException(
-                                                            "Expected a class expression but got a ${propExp.objectExpression.class.simpleName}")
-                                                }
-                                            } else {
-                                                throw new IllegalArgumentException("Expected a variable or a property on the left of '>>")
-                                            }
-
-                                        } else { // usual syntax
-                                            def classExpr = args.expressions[0].text
-                                            (clazz, field) = extractClazzAndFieldOrMethod(classExpr, meth)
-                                            descriptor = args.expressions[1].text
-                                        }
-
-                                        mv.visitFieldInsn(Opcodes."${opcode}", clazz, field, descriptor)
-                                        break;
-                                    case 'BIPUSH':
-                                    case 'SIPUSH':
-                                        mv.visitIntInsn(Opcodes."${opcode}", args.expressions[0].text as int)
-                                        break;
-                                    case 'NEWARRAY':
-                                        mv.visitIntInsn(Opcodes."${opcode}", Opcodes."${args.expressions[0].text.toUpperCase()}")
-                                        break;
-                                    case 'ANEWARRAY':
-                                        mv.visitTypeInsn(ANEWARRAY, args.expressions[0].text);
-                                        break;
-                                    case 'MULTIANEWARRAY':
-                                        mv.visitMultiANewArrayInsn(args.expressions[0].text, args.expressions[1].text as int)
-                                        break;
-                                    case 'TRYCATCHBLOCK':
-                                        if (args.expressions.size() != 4) throw new IllegalArgumentException("Bytecode operation unsupported [trycatchblock requires exactly 4 parameters] : " + expression);
-                                        def tcargs = args.expressions
-                                        mv.visitTryCatchBlock(labels[tcargs[0].text], labels[tcargs[1].text], labels[tcargs[2].text], tcargs[3].value)
-                                        break;
-                                    default:
-                                        throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
-                                }
-                            } else {
-                                throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
-                            }
-                        } else if (expression.objectExpression instanceof VariableExpression && expression.arguments instanceof TupleExpression) {
-                            if (expression.method.text == 'lookupswitch') {
-                                processLookupSwitch(expression, mv, labels)
-                            } else if (expression.method.text == 'tableswitch') {
-                                processTableSwitch(expression, mv, labels)
-                            } else {
-                                throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
-                            }
-                        } else {
-                            throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
-                        }
+                        visitMethodCallExpression(expression, mv, labels, meth)
                     } else {
                         throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
                     }
                 }
+            }
+        }
+
+        private def visitMethodCallExpression(MethodCallExpression expression, MethodVisitor mv, Map labels, meth) {
+            if (expression.objectExpression instanceof VariableExpression && expression.arguments instanceof ArgumentListExpression) {
+                if (expression.objectExpression.text == "this") {
+                    def opcode = expression.methodAsString.toUpperCase()
+                    ArgumentListExpression args = expression.arguments
+                    switch (opcode) {
+                        case '_GOTO':
+                            mv.visitJumpInsn(GOTO, labels[args.expressions[0].text])
+                            break;
+                        case '_NEW':
+                            mv.visitTypeInsn(NEW, args.expressions[0].text)
+                            break;
+                        case '_INSTANCEOF':
+                            mv.visitTypeInsn(INSTANCEOF, args.expressions[0].text)
+                            break;
+                        case 'IF_ICMPGE':
+                        case 'IF_ICMPLE':
+                        case 'IF_ICMPNE':
+                        case 'IF_ICMPLT':
+                        case 'IF_ICMPGT':
+                        case 'IF_ICMPEQ':
+                        case 'IF_ACMPEQ':
+                        case 'IF_ACMPNE':
+                        case 'IFEQ':
+                        case 'IFGE':
+                        case 'IFGT':
+                        case 'IFLE':
+                        case 'IFLT':
+                        case 'IFNE':
+                        case 'IFNONNULL':
+                        case 'IFNULL':
+                            mv.visitJumpInsn(Opcodes."${opcode}", labels[args.expressions[0].text])
+                            break;
+                        case 'ALOAD':
+                        case 'ILOAD':
+                        case 'LLOAD':
+                        case 'FLOAD':
+                        case 'DLOAD':
+                        case 'ASTORE':
+                        case 'ISTORE':
+                        case 'FSTORE':
+                        case 'LSTORE':
+                        case 'DSTORE':
+                            mv.visitVarInsn(Opcodes."${opcode}", args.expressions[0].text as int)
+                            break;
+                        case 'IINC':
+                            mv.visitIincInsn(args.expressions[0].text as int, args.expressions[1].text as int)
+                            break;
+                        case 'INVOKEVIRTUAL':
+                        case 'INVOKESTATIC':
+                        case 'INVOKEINTERFACE':
+                        case 'INVOKESPECIAL':
+                            visitMethodInvoke(mv, opcode, meth, args)
+                            break;
+                        case 'FRAME':
+                            // frames only supported in JDK 1.6+
+                            break;
+                        case 'CHECKCAST':
+                            mv.visitTypeInsn(CHECKCAST, args.expressions[0].text)
+                            break;
+                        case 'LDC':
+                            mv.visitLdcInsn(args.expressions[0].value)
+                            break;
+                        case 'GETFIELD':
+                        case 'PUTFIELD':
+                        case 'GETSTATIC':
+                        case 'PUTSTATIC':
+                            visitFieldInstruction(mv, meth, opcode, args)
+                            break;
+                        case 'BIPUSH':
+                        case 'SIPUSH':
+                            mv.visitIntInsn(Opcodes."${opcode}", args.expressions[0].text as int)
+                            break;
+                        case 'NEWARRAY':
+                            mv.visitIntInsn(Opcodes."${opcode}", Opcodes."${args.expressions[0].text.toUpperCase()}")
+                            break;
+                        case 'ANEWARRAY':
+                            mv.visitTypeInsn(ANEWARRAY, args.expressions[0].text);
+                            break;
+                        case 'MULTIANEWARRAY':
+                            mv.visitMultiANewArrayInsn(args.expressions[0].text, args.expressions[1].text as int)
+                            break;
+                        case 'TRYCATCHBLOCK':
+                            if (args.expressions.size() != 4) throw new IllegalArgumentException("Bytecode operation unsupported [trycatchblock requires exactly 4 parameters] : " + expression);
+                            def tcargs = args.expressions
+                            mv.visitTryCatchBlock(labels[tcargs[0].text], labels[tcargs[1].text], labels[tcargs[2].text], tcargs[3].value)
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                    }
+                } else {
+                    throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                }
+            } else if (expression.objectExpression instanceof VariableExpression && expression.arguments instanceof TupleExpression) {
+                if (expression.method.text == 'lookupswitch') {
+                    processLookupSwitch(expression, mv, labels)
+                } else if (expression.method.text == 'tableswitch') {
+                    processTableSwitch(expression, mv, labels)
+                } else {
+                    throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+                }
+            } else {
+                throw new IllegalArgumentException("Bytecode operation unsupported : " + expression);
+            }
+        }
+
+        private def visitFieldInstruction(MethodVisitor mv, meth, opcode, ArgumentListExpression args) {
+            def clazz, field, descriptor
+
+            // syntax of the form: getstatic name >> String
+            if (args.expressions[0] instanceof BinaryExpression && args.expressions[0].operation.text == '>>') {
+                BinaryExpression binExpr = args.expressions[0]
+                if (binExpr.rightExpression instanceof ClassExpression) {
+                    //descriptor = Type.getDescriptor(args.expressions[0].rightExpression.type.typeClass)
+                    descriptor = BytecodeHelper.getTypeDescription(args.expressions[0].rightExpression.type)
+                } else {
+                    throw new IllegalArgumentException("Expected a class expression on the right of '>>'")
+                }
+
+                if (binExpr.leftExpression instanceof Variable) {
+                    clazz = meth.declaringClass.name
+                    field = binExpr.leftExpression.name
+                } else if (binExpr.leftExpression instanceof PropertyExpression) {
+                    PropertyExpression propExp = binExpr.leftExpression
+                    if (propExp.objectExpression instanceof ClassExpression) {
+                        //clazz = Type.getInternalName(propExp.objectExpression.type.typeClass)
+                        clazz = BytecodeHelper.getClassInternalName(propExp.objectExpression.type)
+                        field = propExp.property.text
+                    } else {
+                        throw new IllegalArgumentException(
+                                "Expected a class expression but got a ${propExp.objectExpression.class.simpleName}")
+                    }
+                } else {
+                    throw new IllegalArgumentException("Expected a variable or a property on the left of '>>")
+                }
+
+            } else { // usual syntax
+                def classExpr = args.expressions[0].text
+                (clazz, field) = extractClazzAndFieldOrMethod(classExpr, meth)
+                descriptor = args.expressions[1].text
+            }
+
+            mv.visitFieldInsn(Opcodes."${opcode}", clazz, field, descriptor)
+        }
+
+        private def visitMethodInvoke(MethodVisitor mv, opcode, meth, ArgumentListExpression args) {
+            def clazz, call, signature
+
+            // syntax of the form: invokevirtual SomeClass.method(double[], String) >> int[]
+            if (args.expressions[0] instanceof BinaryExpression && args.expressions[0].operation.text == '>>') {
+                // return type is what's on the right of the >> binary expression
+                ClassNode returnTypeClassNode = args.expressions[0].rightExpression.type
+                def returnType = returnTypeClassNode == ClassHelper.VOID_TYPE ? "V" : BytecodeHelper.getTypeDescription(returnTypeClassNode)
+
+                MethodCallExpression methCall = args.expressions[0].leftExpression
+
+                // the callee is the subject on which the method is invoked
+                def callee = methCall.objectExpression
+
+                // either the type of the class is explicitely defined
+                if (callee instanceof ClassExpression) {
+                    clazz = BytecodeHelper.getClassInternalName(callee.type)
+                }
+                // or the call is made on this
+                else if (callee instanceof VariableExpression && callee.name == "this") {
+                    clazz = meth.declaringClass.name
+                }
+                // otherwise it's an error
+                else {
+                    throw new IllegalArgumentException("Expected a class expression or variable expression")
+                }
+
+                signature = '(' + methCall.arguments.expressions.collect { ClassExpression ce ->
+                    Type.getDescriptor(ce.type.typeClass)
+                }.join('') + ')' + returnType
+
+                call = methCall.methodAsString
+            } else { // usual syntax
+                def classExpr = args.expressions[0].text
+                (clazz, call) = extractClazzAndFieldOrMethod(classExpr, meth)
+                signature = args.expressions[1].text
+            }
+
+            mv.visitMethodInsn(Opcodes."${opcode}", clazz, call, signature)
+        }
+
+        private def visitVariableExpression(VariableExpression expression, MethodVisitor mv, Map labels) {
+            def text = expression.text.toLowerCase()
+            if (text ==~ /l[0-9]+/) {
+                mv.visitLabel(labels[text])
+            } else if (text == 'vreturn') {
+                // vreturn replaces the regular "return" bytecode statement
+                mv.visitInsn(RETURN)
+            } else if (Instructions.UNIT_OPS.contains(text)) {
+                mv.visitInsn(Opcodes."${text.toUpperCase()}")
+            } else if (text =~ /(load|store)_[0-4]/) {
+                def (var, cpt) = text.split("_")
+                mv.visitVarInsn(Opcodes."${var.toUpperCase()}", cpt as int)
+            } else {
+                throw new IllegalArgumentException("Bytecode operation unsupported : " + text);
             }
         }
 
