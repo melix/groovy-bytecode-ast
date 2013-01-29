@@ -34,14 +34,14 @@ repositories {
     mavenCentral()
 }
 
-def cobSerFile="${project.buildDir}/cobertura.ser"
-def srcOriginal="${sourceSets.main.classesDir}"
-def srcCopy="${srcOriginal}-copy"
+ext.cobSerFile="${project.buildDir}/cobertura.ser"
+ext.srcOriginal="${sourceSets.main.output.classesDir}"
+ext.srcCopy="${srcOriginal}-copy"
 
 // external dependencies
 dependencies {
-    groovy group: 'org.codehaus.groovy', name: 'groovy-all', version: '1.7.6'
-    testCompile "org.spockframework:spock-core:0.5-groovy-1.7"
+    groovy group: 'org.codehaus.groovy', name: 'groovy-all', version: '2.1.0'
+    testCompile "org.spockframework:spock-core:0.7-groovy-2.0"
     testRuntime 'net.sourceforge.cobertura:cobertura:1.9.3'
     testCompile "junit:junit:4.8.1"
 }
