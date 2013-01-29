@@ -80,7 +80,7 @@ test.doLast {
                      tofile: srcOriginal)
         }
         // create cobertura reports
-        ant.'cobertura-report'(destdir:"${project.buildDirName}/test-results",
+        ant.'cobertura-report'(destdir:"${project.buildDir}/test-results",
              format:'html', srcdir:"src/main/groovy", datafile:cobSerFile)
     }
 }

@@ -29,6 +29,7 @@ import org.codehaus.groovy.ast.stmt.ExpressionStatement
 import org.codehaus.groovy.ast.stmt.ReturnStatement
 import org.codehaus.groovy.classgen.BytecodeInstruction
 import org.codehaus.groovy.classgen.BytecodeSequence
+import org.codehaus.groovy.classgen.asm.BytecodeHelper
 import org.codehaus.groovy.control.CompilePhase
 import org.codehaus.groovy.control.SourceUnit
 import org.codehaus.groovy.transform.ASTTransformation
@@ -36,7 +37,6 @@ import org.codehaus.groovy.transform.GroovyASTTransformation
 import org.codehaus.groovy.ast.expr.*
 import org.codehaus.groovy.ast.stmt.Statement
 import org.codehaus.groovy.ast.Variable
-import org.codehaus.groovy.classgen.BytecodeHelper
 import org.codehaus.groovy.ast.ClassNode
 import org.codehaus.groovy.ast.ClassHelper
 
