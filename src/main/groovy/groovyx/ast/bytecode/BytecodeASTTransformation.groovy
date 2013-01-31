@@ -20,6 +20,7 @@
 
 package groovyx.ast.bytecode
 
+import groovyjarjarasm.asm.Handle
 import groovyjarjarasm.asm.Type
 import groovyjarjarasm.asm.Label
 import groovyjarjarasm.asm.MethodVisitor
@@ -40,11 +41,15 @@ import org.codehaus.groovy.ast.Variable
 import org.codehaus.groovy.ast.ClassNode
 import org.codehaus.groovy.ast.ClassHelper
 
+import java.lang.invoke.MethodType
+
 @GroovyASTTransformation(phase = CompilePhase.SEMANTIC_ANALYSIS)
 class BytecodeASTTransformation implements ASTTransformation, Opcodes {
+    private SourceUnit sourceUnit
     void visit(ASTNode[] nodes, SourceUnit source) {
         def meth = nodes[1]
         meth.code = new BytecodeSequence(new BytecodeGenerator(meth, meth.code.statements))
+        sourceUnit = source
     }
 
     /**
@@ -68,7 +73,7 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
     /**
      * Converts bytecode instructions from an AST tree into ASM bytecode generation code.
      */
-    private static class BytecodeGenerator extends BytecodeInstruction {
+    private class BytecodeGenerator extends BytecodeInstruction {
 
         private def meth;
         private def instructions;
@@ -155,6 +160,9 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                             break;
                         case 'IINC':
                             mv.visitIincInsn(args.expressions[0].text as int, args.expressions[1].text as int)
+                            break;
+                        case 'INVOKEDYNAMIC':
+                            visitInvokeDynamic(mv, args)
                             break;
                         case 'INVOKEVIRTUAL':
                         case 'INVOKESTATIC':
@@ -343,6 +351,53 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
             }
 
             mv.visitMethodInsn(Opcodes."${opcode}", clazz, call, signature)
+        }
+
+        private String signature(ListExpression list) {
+            MethodCallExpression mce = new MethodCallExpression(
+                    new StaticMethodCallExpression(
+                            ClassHelper.make(MethodType),
+                            "methodType",
+                            new ArgumentListExpression(list.expressions)
+                    ),
+                    "toMethodDescriptorString",
+                    ArgumentListExpression.EMPTY_ARGUMENTS
+            )
+            ExpressionEvaluator.evaluate(mce)
+        }
+
+        private def visitInvokeDynamic(MethodVisitor mv, ArgumentListExpression args) {
+            sourceUnit.configuration.targetBytecode = '1.7'
+            def exprs = args.getExpressions()
+            if (exprs.size()<3) {
+                throw new IllegalArgumentException("Not enough arguments for an invokedynamic call")
+            }
+            // invokedynamic "name", "signature()I", [H_INVOKESTATIC, ...]
+            String name = exprs[0].text
+            String desc
+            def handleCreateArgs = new ArgumentListExpression()
+            def handleExpressions = exprs[2].expressions
+            for (int i=0; i<handleExpressions.size()-1; i++) {
+                handleCreateArgs.addExpression(handleExpressions[i])
+            }
+            handleCreateArgs.addExpression(new ConstantExpression(signature(handleExpressions[-1])))
+            ConstructorCallExpression handleExpr = new ConstructorCallExpression(
+                    ClassHelper.make(Handle),
+                    handleCreateArgs
+            )
+            Object[] extraArgs = (exprs.size()>3?exprs.subList(3, exprs.size()).collect { ConstantExpression ce ->
+                ce.value}:[]) as Object[]
+            def argTypes = exprs[1]
+            if (argTypes instanceof ConstantExpression) {
+                desc = argTypes.text
+            } else if (argTypes instanceof ListExpression) {
+                desc = signature(argTypes)
+            } else {
+                throw new IllegalArgumentException("Second argument of invokedynamic call must be a list of classes")
+            }
+
+            Handle handle = ExpressionEvaluator.evaluate(handleExpr)
+            mv.visitInvokeDynamicInsn(name, desc, handle, *extraArgs)
         }
 
         private def visitVariableExpression(VariableExpression expression, MethodVisitor mv, Map labels) {
