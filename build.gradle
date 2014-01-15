@@ -40,7 +40,7 @@ ext.srcCopy="${srcOriginal}-copy"
 
 // external dependencies
 dependencies {
-    groovy group: 'org.codehaus.groovy', name: 'groovy-all', version: '2.1.0'
+    groovy 'org.codehaus.groovy:groovy-all:2.2.1:indy'
     testCompile "org.spockframework:spock-core:0.7-groovy-2.0"
     testRuntime 'net.sourceforge.cobertura:cobertura:1.9.3'
     testCompile "junit:junit:4.8.1"
