@@ -195,6 +195,7 @@ def mnemonics = [
         'lstore_3'
 ]
 mnemonics<<'_new'
+mnemonics<<'go to'<<'_goto'
 
 def returnOps = [areturn: Object.name,
                  dreturn: Double.name,
@@ -211,4 +212,8 @@ contributor(context(scope: annotatedScope(ctype: 'groovyx.ast.bytecode.Bytecode'
     returnOps.each { op, cls -> variable name: op, type: cls }
 
     for (op in mnemonics) variable name: op, type: Closure.name
+}
+
+contributor(context(scope: annotatedScope(ctype: 'groovyx.ast.bytecode.Bytecode'),ctype: Object.name)){
+    method name: 'rightShift' , params: [arg:Object.name]
 }
