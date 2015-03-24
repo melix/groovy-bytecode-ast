@@ -15,12 +15,15 @@ If you use Gradle:
 [source,groovy]
 ----
 repositories {
-   jcenter()
+   maven { url 'http://oss.jfrog.org/oss-release-local' }
 }
 dependencies {
     compile 'me.champeau.groovy:bytecode-xform:0.2.0'
 }
 ----
+
+Note that you might have to use a weird classloading trick like the one https://github.com/melix/lecharny-challenge/commit/fc7b97b763b07c23b4c03a5d9796fc1129da398e[here]
+if you face a classloader constraint violation.
 
 But if you really insist on using Maven:
 
