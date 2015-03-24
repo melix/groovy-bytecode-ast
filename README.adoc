@@ -1,0 +1,88 @@
+= @Bytecode AST transformation
+
+image:https://travis-ci.org/melix/groovy-bytecode-ast.svg["Build Status", link="https://travis-ci.org/melix/groovy-bytecode-ast"]
+
+This project adds a `@Bytecode` AST transformation to Groovy, which will let you write bytecode directly as a method body!
+
+This is for *educational purposes only*. I would *never* use this in real production code.
+
+= Usage
+== Build script
+
+If you use Gradle:
+
+.build.gradle
+[source,groovy]
+----
+repositories {
+   jcenter()
+}
+dependencies {
+    compile 'me.champeau.groovy:bytecode-xform:0.2.0'
+}
+----
+
+But if you really insist on using Maven:
+
+.pom.xml
+[source,xml]
+----
+    <dependencies>
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-core</artifactId>
+            <version>${jmh.version}</version>
+        </dependency>
+    </dependencies>
+    <repositories>
+        <repository>
+            <id>jfrog</id>
+            <url>http://oss.jfrog.org/oss-release-local</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+----
+
+== Code
+
+Then you can start using it in your Groovy code like in this example:
+
+[source,groovy]
+----
+
+@groovyx.ast.bytecode.Bytecode
+int fib(int n) {
+    l0:
+    iload 1
+    iconst_2
+    if_icmpge l1
+    iload 1
+    _goto l2
+    l1:
+    aload 0
+    iload 1
+    iconst_2
+    isub
+    invokevirtual '.fib','(I)I'
+    aload 0
+    iload 1
+    iconst_1
+    isub
+    invokevirtual '.fib', '(I)I'
+    iadd
+    l2:
+    ireturn
+}
+----
+
+A detailed explanation of the concept and why it was done can be found on some blog posts I wrote:
+
+* http://melix.github.io/blog/2011/01/16/groovy_bytecode_ast_transformation_released.html[Groovy @Bytecode AST transformation released]
+* http://melix.github.io/blog/2011/01/31/inline_assembly_with_groovy_evil.html[Inline assembly with Groovy… Evil or awesome?]
+* http://melix.github.io/blog/2013/01/31/using_groovy_to_play_with.html[Using Groovy to play with invokedynamic]
+

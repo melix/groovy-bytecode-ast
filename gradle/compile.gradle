@@ -1,0 +1,31 @@
+apply plugin: 'groovy'
+apply plugin: 'jacoco'
+
+repositories {
+    jcenter()
+}
+
+// external dependencies
+dependencies {
+    compile 'org.codehaus.groovy:groovy:2.4.3'
+    testCompile("org.spockframework:spock-core:1.0-groovy-2.4") {
+        exclude group: 'org.codehaus.groovy'
+    }
+    testCompile "junit:junit:4.12"
+}
+
+sourceCompatibility=1.6
+targetCompatibility=1.6
+
+compileGroovy.options.encoding = 'UTF-8'
+
+// custom tasks for creating source/javadoc jars
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}

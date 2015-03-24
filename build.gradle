@@ -1,18 +1,6 @@
-apply plugin: 'idea'
-apply plugin: 'groovy'
-
-group = "groovyx.ast.bytecode"
-version = "0.2.0-SNAPSHOT"
-
-description = "Provides an AST Transformation which allows to write the body of a method as bytecode"
-
-targetCompatibility = "1.5"
-sourceCompatibility = "1.5"
-
 /*
  *
- *
- *   Copyright 2011 Cédric Champeau
+ *   Copyright 2011-2015 Cédric Champeau
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,62 +13,19 @@ sourceCompatibility = "1.5"
  *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
- *  /
- * /
+ *
  */
 
-// specifies all Maven repositories for resolving external depedencies
-repositories {
-    mavenCentral()
+plugins {
+    id 'com.jfrog.artifactory' version '3.0.1'
+    id 'com.jfrog.bintray' version '1.1'
 }
+apply plugin: 'idea'
 
-ext.cobSerFile="${project.buildDir}/cobertura.ser"
-ext.srcOriginal="${sourceSets.main.output.classesDir}"
-ext.srcCopy="${srcOriginal}-copy"
+description = "Provides an AST Transformation which allows to write the body of a method as bytecode"
 
-// external dependencies
-dependencies {
-    groovy 'org.codehaus.groovy:groovy-all:2.2.1:indy'
-    testCompile "org.spockframework:spock-core:0.7-groovy-2.0"
-    testRuntime 'net.sourceforge.cobertura:cobertura:1.9.3'
-    testCompile "junit:junit:4.8.1"
-}
-
-test.doFirst  {
-    ant {
-        // delete data file for cobertura, otherwise coverage would be added
-        delete(file:cobSerFile, failonerror:false)
-        // delete copy of original classes
-        delete(dir: srcCopy, failonerror:false)
-        // import cobertura task, so it is available in the script
-        taskdef(resource:'tasks.properties', classpath: configurations.testRuntime.asPath)
-        // create copy (backup) of original class files
-        copy(todir: srcCopy) {
-            fileset(dir: srcOriginal)
-        }
-        // instrument the relevant classes in-place
-        'cobertura-instrument'(datafile:cobSerFile) {
-            fileset(dir: srcOriginal,
-                   includes:"groovyx/ast/bytecode/**/*.class",
-                   excludes:"**/*Test.class")
-        }
-    }
-}
-
-test {
-    systemProperties "net.sourceforge.cobertura.datafile": cobSerFile
-}
-
-test.doLast {
-    if (new File(srcCopy).exists()) {
-        // replace instrumented classes with backup copy again
-        ant {
-            delete(file: srcOriginal)
-            move(file: srcCopy,
-                     tofile: srcOriginal)
-        }
-        // create cobertura reports
-        ant.'cobertura-report'(destdir:"${project.buildDir}/test-results",
-             format:'html', srcdir:"src/main/groovy", datafile:cobSerFile)
-    }
-}
+apply from:'gradle/compile.gradle'
+apply from:'gradle/credentials.gradle'
+apply from:'gradle/publishing.gradle'
+apply from:'gradle/artifactory.gradle'
+apply from:'gradle/bintray.gradle'
