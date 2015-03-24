@@ -32,9 +32,9 @@ But if you really insist on using Maven:
 ----
     <dependencies>
         <dependency>
-            <groupId>org.openjdk.jmh</groupId>
-            <artifactId>jmh-core</artifactId>
-            <version>${jmh.version}</version>
+            <groupId>me.champeau.groovy</groupId>
+            <artifactId>bytecode-xform</artifactId>
+            <version>0.2.0</version>
         </dependency>
     </dependencies>
     <repositories>
