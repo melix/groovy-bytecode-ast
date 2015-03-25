@@ -37,5 +37,5 @@ import org.codehaus.groovy.transform.GroovyASTTransformationClass
 @Target([ElementType.METHOD])
 @GroovyASTTransformationClass(["groovyx.ast.bytecode.BytecodeASTTransformation"])
 public @interface Bytecode {
-
+    boolean lineNumbers() default false;
 }

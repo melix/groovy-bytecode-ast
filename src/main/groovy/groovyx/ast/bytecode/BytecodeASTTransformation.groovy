@@ -26,6 +26,9 @@ import groovyjarjarasm.asm.Label
 import groovyjarjarasm.asm.MethodVisitor
 import groovyjarjarasm.asm.Opcodes
 import org.codehaus.groovy.ast.ASTNode
+import org.codehaus.groovy.ast.AnnotationNode
+import org.codehaus.groovy.ast.MethodNode
+import org.codehaus.groovy.ast.Parameter
 import org.codehaus.groovy.ast.stmt.ExpressionStatement
 import org.codehaus.groovy.ast.stmt.ReturnStatement
 import org.codehaus.groovy.classgen.BytecodeInstruction
@@ -46,10 +49,21 @@ import java.lang.invoke.MethodType
 @GroovyASTTransformation(phase = CompilePhase.SEMANTIC_ANALYSIS)
 class BytecodeASTTransformation implements ASTTransformation, Opcodes {
     private SourceUnit sourceUnit
+    private boolean showLineNumbers = false
+
     void visit(ASTNode[] nodes, SourceUnit source) {
+        def ann = nodes[0]
+        extractOptions(ann)
         def meth = nodes[1]
         meth.code = new BytecodeSequence(new BytecodeGenerator(meth, meth.code.statements))
         sourceUnit = source
+    }
+
+    private final extractOptions(AnnotationNode node) {
+        def member = node.getMember('lineNumbers')
+        if (member instanceof ConstantExpression) {
+            showLineNumbers = member.value as boolean
+        }
     }
 
     /**
@@ -75,10 +89,11 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
      */
     private class BytecodeGenerator extends BytecodeInstruction {
 
-        private def meth;
-        private def instructions;
+        private final MethodNode meth
+        private final Collection<Statement> instructions
+        private final List<Closure> localVariables = []
 
-        BytecodeGenerator(method, instructions) {
+        BytecodeGenerator(MethodNode method, Collection<Statement> instructions) {
             this.meth = method
             this.instructions = instructions
         }
@@ -88,12 +103,25 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
             def labels = [:].withDefault { throw new IllegalArgumentException("Label [${it}] is not defined")}
             // perform first visit to collect labels
             collectLabels(labels)
+            Label start = new Label()
+            labels.start = start
+            mv.visitLabel(start)
             // second iteration transforms each instruction into bytecode visitor instructions
             visitInstructions(mv, labels)
+            Label end = new Label()
+            labels.end = end
+            mv.visitLabel(end)
+            // declare local variables
+            int idx = meth.isStatic()?0:1
+            for (Parameter p : meth.parameters) {
+                mv.visitLocalVariable(p.name, BytecodeHelper.getTypeDescription(p.originType), null, start, end, idx++)
+            }
+            localVariables.each { it.call() }
         }
 
         private def visitInstructions(MethodVisitor mv, Map labels) {
             instructions.each { stmt ->
+                printLineNumber(stmt, mv)
                 if (stmt.statementLabel) {
                     mv.visitLabel(labels[stmt.statementLabel])
                 }
@@ -109,6 +137,14 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                         unsupportedBytecodeOperation(expression)
                     }
                 }
+            }
+        }
+
+        private void printLineNumber(ASTNode stmt, MethodVisitor mv) {
+            if (showLineNumbers && stmt.lineNumber > 0) {
+                def label = new Label()
+                mv.visitLabel(label)
+                mv.visitLineNumber(stmt.lineNumber, label)
             }
         }
 
@@ -215,7 +251,20 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                             if (args.expressions.size() != 4) throw new IllegalArgumentException("Bytecode operation unsupported [trycatchblock requires exactly 4 parameters] : " + expression);
                             def tcargs = args.expressions
                             mv.visitTryCatchBlock(labels[tcargs[0].text], labels[tcargs[1].text], labels[tcargs[2].text], internalClassName(tcargs[3]))
-                            break;
+                            break
+                        case 'LOCALVARIABLE':
+                            if (args.expressions.size() != 6) throw new IllegalArgumentException("Bytecode operation unsupported [localvariable requires exactly 4 parameters] : $expression.text")
+                            def ag = args.expressions
+                            localVariables << {
+                                mv.visitLocalVariable(
+                                        ag[0].text,
+                                        ag[1].text,
+                                        null,
+                                        labels[ag[3].text],
+                                        labels[ag[4].text],
+                                        ag[5].value)
+                            }
+                            break
                         default:
                             unsupportedBytecodeOperation(expression)
                     }
