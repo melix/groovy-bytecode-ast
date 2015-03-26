@@ -29,6 +29,7 @@ import org.codehaus.groovy.ast.ASTNode
 import org.codehaus.groovy.ast.AnnotationNode
 import org.codehaus.groovy.ast.MethodNode
 import org.codehaus.groovy.ast.Parameter
+import org.codehaus.groovy.ast.stmt.BlockStatement
 import org.codehaus.groovy.ast.stmt.ExpressionStatement
 import org.codehaus.groovy.ast.stmt.ReturnStatement
 import org.codehaus.groovy.classgen.BytecodeInstruction
@@ -53,10 +54,16 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
 
     void visit(ASTNode[] nodes, SourceUnit source) {
         def ann = nodes[0]
-        extractOptions(ann)
         def meth = nodes[1]
-        meth.code = new BytecodeSequence(new BytecodeGenerator(meth, meth.code.statements))
-        sourceUnit = source
+        if (ann instanceof AnnotationNode && meth instanceof MethodNode) {
+            extractOptions(ann)
+            def code = meth.code
+            def statements = code instanceof BlockStatement?code.statements:[code]
+            meth.code = new BytecodeSequence(new BytecodeGenerator(meth, statements))
+            sourceUnit = source
+        } else {
+            throw new IllegalArgumentException("The @Bytecode annotation is only supported on methods")
+        }
     }
 
     private final extractOptions(AnnotationNode node) {
@@ -259,10 +266,10 @@ class BytecodeASTTransformation implements ASTTransformation, Opcodes {
                                 mv.visitLocalVariable(
                                         ag[0].text,
                                         ag[1].text,
-                                        null,
+                                        ag[1].text,
                                         labels[ag[3].text],
                                         labels[ag[4].text],
-                                        ag[5].value)
+                                        ag[5].value as int)
                             }
                             break
                         default:
